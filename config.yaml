@@ -1,0 +1,3 @@
+gtf: "./Homo_sapiens.GRCh38.108.gtf"
+collaps_gtf: "./Homo_sapiens.GRCh38.108_collapsed.gtf"
+ref_fa: "./Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz"
