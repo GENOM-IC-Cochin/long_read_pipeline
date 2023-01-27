@@ -16,6 +16,9 @@ rule all:
         expand("quants/00_{sample}_sorted_indexed/00_{sample}_sorted_indexed.transcript_tpm.tsv", sample=SAMPLES)
 
 
+# Maybe add annotated junctions in bed format, to prioritize annotated splice junction.
+# paftools.js gff2bed anno.gff > anno.bed # to create the bed file.
+
 rule minimap_align:
     input:
         fa=config["ref_fa"],
