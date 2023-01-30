@@ -96,7 +96,8 @@ rule isoquant:
     shell:
         "isoquant.py --data_type ont --reference {input.fa} "
         "--genedb {input.gtf} --bam {input.bam} --force "
-        "--output {params.output_dir} -t {threads} --complete_genedb"
+        "--output {params.output_dir} -t {threads} --complete_genedb "
+        "--transcript_quantification unique_only"
 
 
 
