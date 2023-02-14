@@ -1,19 +1,20 @@
 SAMPLES = [
-        "SRR8360560",
-        "SRR8360562",
-        "SRR8360563",
-        "SRR8360564",
-        "SRR8360565",
-        "SRR8360566"
-        ]
+    "20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07",
+    "20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode08",
+    "20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode09",
+    "20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode10",
+    "20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode11",
+    "20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode12"
+]
+
 
 configfile: "config.yaml"
 
 rule all:
     input:
-        expand("aligned/{sample}_sorted_indexed.bam", sample=SAMPLES),
+        expand(config["storage_dir"] + "aligned/{sample}_sorted_indexed.bam", sample=SAMPLES),
         "qc/rnaseqc_report/multiqc_report.html",
-        expand("quants/00_{sample}_sorted_indexed/00_{sample}_sorted_indexed.transcript_tpm.tsv", sample=SAMPLES)
+        "quants/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed.transcript_counts.tsv"
 
 
 # Maybe add annotated junctions in bed format, to prioritize annotated splice junction.
@@ -22,7 +23,7 @@ rule all:
 rule minimap_align:
     input:
         fa=config["ref_fa"],
-        fq="{sample}.fastq"
+        fq=config["storage_dir"] + "{sample}.fastq"
     output:
         temp("aligned/{sample}.sam")
     threads:
@@ -44,7 +45,7 @@ rule sort_index:
     input:
         "aligned/{sample}.bam"
     output:
-        "aligned/{sample}_sorted_indexed.bam"
+        config["storage_dir"] + "aligned/{sample}_sorted_indexed.bam"
     shell:
         "samtools sort {input} -o {output} && samtools index {output}"
 
@@ -52,7 +53,7 @@ rule sort_index:
 rule rnaseqc:
     input:
         gtf=config["collaps_gtf"],
-        bam="aligned/{sample}_sorted_indexed.bam"
+        bam= config["storage_dir"] + "aligned/{sample}_sorted_indexed.bam"
     output:
         "qc/rnaseqc/{sample}.metrics.tsv"
     params:
@@ -85,19 +86,20 @@ rule collapse_annotations:
 
 rule isoquant:
     input:
-        bam="aligned/{sample}_sorted_indexed.bam",
+        bam=expand(config["storage_dir"] + "aligned/{sample}_sorted_indexed.bam", sample=SAMPLES),
+        bam_list="bam_list.txt",
         gtf=config["gtf"],
         fa=config["ref_fa"]
     threads: 16
     params:
         output_dir="quants"
     output:
-        "quants/00_{sample}_sorted_indexed/00_{sample}_sorted_indexed.transcript_tpm.tsv"
+        "quants/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed.transcript_counts.tsv"
     shell:
         "isoquant.py --data_type ont --reference {input.fa} "
-        "--genedb {input.gtf} --bam {input.bam} --force "
+        "--genedb {input.gtf} --bam_list {input.bam_list} --force "
         "--output {params.output_dir} -t {threads} --complete_genedb "
-        "--transcript_quantification unique_only"
+        "--read_group file_name"
 
 
 

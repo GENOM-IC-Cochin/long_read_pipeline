@@ -1,3 +1,4 @@
-gtf: "./Homo_sapiens.GRCh38.108.gtf"
-collaps_gtf: "./Homo_sapiens.GRCh38.108_collapsed.gtf"
-ref_fa: "./Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz"
+gtf: "/home/etheimer/ref_proj_paul/gencode/gencode.v43.primary_assembly.annotation.gtf"
+collaps_gtf: "/home/etheimer/ref_proj_paul/gencode/gencode.v43.primary_assembly.annotation_collapsed.gtf"
+ref_fa: "/home/etheimer/ref_proj_paul/gencode/GRCh38.primary_assembly.genome.fa.gz"
+storage_dir: "/datas/PROJETS/2023/Nanopore_Paul/tat_pas_tat/"
