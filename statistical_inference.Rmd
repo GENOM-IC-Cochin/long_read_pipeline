@@ -1,0 +1,213 @@
+---
+title: "HIV Long Read"
+author: "Paul Etheimer"
+date: '2023-03-09'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=FALSE,
+                      echo=FALSE,
+                      warning=FALSE
+                      )
+```
+```{r libraries}
+library(readr)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(tibble)
+library(ggplot2)
+library(stringr)
+library(aggregation)
+library(hexbin)
+
+library(GenomicFeatures)
+library(vsn)
+library(DESeq2)
+library(DEXSeq)
+library(DRIMSeq)
+library(biomaRt)
+library(IsoformSwitchAnalyzeR)
+library(BSgenome.Hsapiens.UCSC.hg38)
+
+```
+```{r}
+rld_pca <- function(rld, config, ntop = 500) {
+  rv <- matrixStats::rowVars(assay(rld))
+  selected_genes <- order(rv, decreasing = TRUE)[seq_len(min(ntop, length(rv)))]
+  mat <- t(assay(rld)[selected_genes, ])
+  pc <- prcomp(mat)
+  eig <- (pc$sdev)^2
+  variance <- eig * 100 / sum(eig)
+
+  PCAdata <- as.data.frame(pc$x)
+# Join with condition, on name, to be sure of matches between condition and sample
+  PCAdata <- PCAdata %>%
+    tibble::rownames_to_column(var = "sampleID") %>%
+    inner_join(config, by = "sampleID") %>%
+    tibble::column_to_rownames(var = "sampleID")
+  list("data" = PCAdata, "variance" = variance)
+}
+```
+
+
+
+## Introduction
+
+Ce projet a pour but d'explorer plusieurs méthodes d'analyse d'analyse différentielle de l'épissage entre deux conditions, avec >= 3 réplicats. Les données de comptages sont obtenues grace à du séquençage long read sur ONT. Cette version explore les données de Corentin Aubé sur deux infections de cellules par deux VIH différents, séquencées en MinION. Il doit servir de *toy dataset* pour les données du futur projet de Sarah Gallois.
+
+## EDA
+La première étape est une exploration du jeu de données (à compléter via des alignements sur VIH et un comptage des deux?)
+```{r}
+samplesheet <- read_tsv("../deseq2_NLGV_4GSTm_deltaTat_A2020-deseq2Design.txt")
+matrix_tx <- read_tsv("../quants/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed.transcript_model_grouped_counts.tsv")
+samplesheet <- tibble(samplesheet, "tx_mat_name" = colnames(matrix_tx)[-1])
+colnames(matrix_tx) <- c("isoform_id", samplesheet$Description)
+design_matrix <- samplesheet %>% dplyr::select(Condition, Description) %>% dplyr::rename(sampleID = Description, condition = Condition)
+```
+```{r}
+matrix_tx %>%
+  pivot_longer(!isoform_id, names_to = "sampleID") %>%
+  left_join(design_matrix, by = "sampleID") %>%
+  ggplot(aes(x = sampleID, y = value, fill = condition)) +
+  geom_violin() +
+  scale_y_log10()
+```
+
+
+```{r}
+exploratory_dds <- DESeqDataSetFromMatrix(round(matrix_tx %>% column_to_rownames("isoform_id") %>% as.matrix),
+                                          colData = design_matrix %>% column_to_rownames("sampleID"),
+                                          ~ condition)
+exploratory_dds <- estimateSizeFactors(exploratory_dds)
+```
+
+
+Ces distributions semblent relativement proche. Nous pouvons également nous intéresser au lien entre la variance et la moyenne, problème bien connu des données de RNA-Seq au niveau gène.
+```{r}
+DESeq2::plotDispEsts(exploratory_dds, ymin = 1e-08)
+```
+
+```{r}
+library(vsn)
+library(hexbin)
+meanSdPlot(assay(normTransform(exploratory_dds)))
+```
+
+```{r}
+meanSdPlot(assay(rlog(exploratory_dds)))
+```
+```{r}
+meanSdPlot(assay(vst(exploratory_dds)))
+```
+
+Ces trois visualisations nous indique que le lien de la variance avec la moyenne de nos comptes de transcrits est assez faible quelque soit la transformation, et que la transformation la plus pertinente semble la transformation log la plus classique
+
+```{r}
+log_tr <- normTransform(exploratory_dds)
+pca_data <- rld_pca(log_tr, design_matrix)#, nrow(log_tr))
+```
+
+```{r pca_counts}
+plot_res <- ggplot(
+  pca_data$data,
+  aes(
+    x = PC1,
+    y = PC2,
+    label = rownames(pca_data$data)
+  )
+) +
+  ylab(paste0("PC2: ", round(pca_data$variance[2], 1), "% variance")) +
+  xlab(paste0("PC1: ", round(pca_data$variance[1], 1), "% variance")) +
+  coord_fixed() +
+  geom_point(aes(color = condition), size = 5)
+plot_res
+```
+
+On observe sur cette PCA que les deux conditions semblent malheureusement se recouvrir, notamment à cause d'un échantillon particulier du groupe contrôle. Si dans un cas général nous ne poursuivrions peut-être pas l'analyse, ici comme le but est d'écrire un modèle d'analyse, nous allons continuer.
+
+## DTU avec DEXSeq et DRIMSeq
+
+### Filtrer avec DEXSeq
+
+La première analyse statistique des gènes exhibant un *differential transcript usage* est basée sur [Love et al.](https://f1000research.com/articles/7-952/v3). Ce workflow utilise DRIMSeq pour filtrer les transcrits, avant d'utiliser DEXSeq pour l'inférence.
+
+La première étape de ce pipeline implique de construire un lien entre noms de transcrits, que nous avons, et noms de gènes. Ceci est compliqué par le fait que nous avons utilisé la découverte de transcrit avec Isoquant, ce qui fait qu'un simple fichier d'annotation ne suffit pas. Donc nous allons utiliser le package `GenomicFeatures` pour importer le fichier gtf construit par Isoquant, sous la forme d'un objet TxDb. 
+
+```{r}
+gtf <- "../quants/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed.transcript_models.gtf"
+txdb_filename <- "transcript_models.sqlite"
+txdb <- makeTxDbFromGFF(gtf)
+saveDb(txdb, txdb_filename)
+txdf <- AnnotationDbi::select(txdb, keys(txdb, "GENEID"), "TXNAME", "GENEID")
+# tab <- table(txdf$GENEID) not used?
+# txdf$ntx <- tab[match(txdf$GENEID, names(tab))]
+```
+
+```{r}
+# sanity checks from paper
+# cts_matrix <- matrix_tx %>% column_to_rownames("isoform_id") %>% as.matrix()
+# all(rownames(cts_matrix) %in% txdf$TXNAME)
+# txdf <- txdf[match(rownames(cts_matrix),txdf$TXNAME),]
+# all(rownames(cts_matrix) == txdf$TXNAME)
+counts <- left_join(
+    matrix_tx %>% dplyr::rename("feature_id" = "isoform_id"),
+    txdf %>% dplyr::rename("feature_id" = "TXNAME"),
+    by = "feature_id") %>%
+  dplyr::rename("gene_id" = "GENEID") %>%
+  relocate(gene_id, .after = feature_id)
+```
+On commence donc par filter les données via DRIMSeq. Il y a trois filtres :
+- minimum de comptage de transcrit de 10 dans au moins 3 échantillons
+- minimum de 10% du transcrit relatif au gène dans au moins 3 échantillons
+- minimum de comptage du gène de 10 dans les 6 échantillons.
+
+Ce sont les filtres du workflow modèle, mais nous allons utiliser 3, 10% et 3 dans notre cas car il y a très peu de profondeur. Sur des données Promethion, nous pourrions utiliser plus de 
+```{r}
+drim <- dmDSdata(counts = counts %>% as.data.frame(),
+                 samples = design_matrix %>% dplyr::rename("sample_id" = "sampleID") %>% as.data.frame())
+drim <- dmFilter(
+  drim,
+  min_samps_feature_expr = 3, min_feature_expr = 3,
+  min_samps_feature_prop = 3, min_feature_prop = 0.1,
+  min_samps_gene_expr = 6, min_gene_expr = 3
+)
+```
+
+Le nombre de gènes est très fortement diminué, divisé par ~ 5, malgré des filtres permissifs. Mais sur des données plus profondes, cela pourrait être moins drastique. Les gènes n'ayant qu'un isoform sont évidemment éliminés.
+
+Le worklow continue en utilisant DRIMSeq, mais nous n'utiliserons que DEXSeq pour la partie inférence.
+
+### Inférence avec DEXSeq
+
+```{r}
+sample_data <- DRIMSeq::samples(drim)
+count_data <- round(as.matrix(counts(drim)[, -c(1, 2)]))
+dex <- DEXSeqDataSet(
+  countData = count_data,
+  sampleData = sample_data,
+  design = ~ sample + exon + condition:exon,
+  featureID = counts(drim)$feature_id,
+  groupID = counts(drim)$gene_id
+)
+```
+```{r}
+dex <- DEXSeq::estimateSizeFactors(dex)
+dex <- DEXSeq::estimateDispersions(dex)
+dex <- DEXSeq::testForDEU(dex, reducedModel = ~ sample + exon)
+```
+
+ 
+```{r}
+dex_res <- DEXSeqResults(dex, independentFiltering = FALSE)
+qval <- perGeneQValue(dex_res)
+dex_res_g <- data.frame(gene = names(qval), qval)
+```
+```{r}
+# Pour avoir la liste des transcrits, mais pourquoi pvalue et not padj??-> pour stageR?
+columns <- c("featureID","groupID","pvalue")
+dxr_sub <- as.data.frame(dxr[,columns])
+head(dxr)
+```
+
