@@ -866,6 +866,45 @@
       ],
       "Hash": "608e268e5190acde39952847511b9bac"
     },
+    "affy": {
+      "Package": "affy",
+      "Version": "1.72.0",
+      "Source": "Bioconductor",
+      "git_url": "https://git.bioconductor.org/packages/affy",
+      "git_branch": "RELEASE_3_14",
+      "git_last_commit": "3750b4e",
+      "git_last_commit_date": "2021-10-26",
+      "Requirements": [
+        "Biobase",
+        "BiocGenerics",
+        "BiocManager",
+        "R",
+        "affyio",
+        "grDevices",
+        "graphics",
+        "methods",
+        "preprocessCore",
+        "stats",
+        "utils",
+        "zlibbioc"
+      ],
+      "Hash": "147c5b9086625ad520de96fcd0e0bc58"
+    },
+    "affyio": {
+      "Package": "affyio",
+      "Version": "1.64.0",
+      "Source": "Bioconductor",
+      "git_url": "https://git.bioconductor.org/packages/affyio",
+      "git_branch": "RELEASE_3_14",
+      "git_last_commit": "aa7ce48",
+      "git_last_commit_date": "2021-10-26",
+      "Requirements": [
+        "R",
+        "methods",
+        "zlibbioc"
+      ],
+      "Hash": "5404fd2f169d29441e0696de2f2eca05"
+    },
     "aggregation": {
       "Package": "aggregation",
       "Version": "1.0.1",
@@ -1447,6 +1486,23 @@
       ],
       "Hash": "42f0e87156db6124310f61d219ae6fca"
     },
+    "hexbin": {
+      "Package": "hexbin",
+      "Version": "1.28.2",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "R",
+        "grDevices",
+        "graphics",
+        "grid",
+        "lattice",
+        "methods",
+        "stats",
+        "utils"
+      ],
+      "Hash": "76314b69dc54f8c14204063a2fd6d74a"
+    },
     "highr": {
       "Package": "highr",
       "Version": "0.10",
@@ -1854,6 +1910,19 @@
         "R"
       ],
       "Hash": "03b7076c234cb3331288919983326c55"
+    },
+    "preprocessCore": {
+      "Package": "preprocessCore",
+      "Version": "1.56.0",
+      "Source": "Bioconductor",
+      "git_url": "https://git.bioconductor.org/packages/preprocessCore",
+      "git_branch": "RELEASE_3_14",
+      "git_last_commit": "8f32722",
+      "git_last_commit_date": "2021-10-26",
+      "Requirements": [
+        "stats"
+      ],
+      "Hash": "36a1b1901bc140f7b25fefd0b2c87450"
     },
     "prettyunits": {
       "Package": "prettyunits",
@@ -2385,6 +2454,25 @@
       ],
       "Hash": "7015a74373b83ffaef64023f4a0f5033"
     },
+    "vsn": {
+      "Package": "vsn",
+      "Version": "3.62.0",
+      "Source": "Bioconductor",
+      "git_url": "https://git.bioconductor.org/packages/vsn",
+      "git_branch": "RELEASE_3_14",
+      "git_last_commit": "6ae7f4e",
+      "git_last_commit_date": "2021-10-26",
+      "Requirements": [
+        "Biobase",
+        "R",
+        "affy",
+        "ggplot2",
+        "lattice",
+        "limma",
+        "methods"
+      ],
+      "Hash": "371f1a4d99079b174dc215a7c8a27a92"
+    },
     "withr": {
       "Package": "withr",
       "Version": "2.5.0",
@@ -2438,6 +2526,16 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "0d0056cc5383fbc240ccd0cb584bf436"
+    },
+    "zlibbioc": {
+      "Package": "zlibbioc",
+      "Version": "1.40.0",
+      "Source": "Bioconductor",
+      "git_url": "https://git.bioconductor.org/packages/zlibbioc",
+      "git_branch": "RELEASE_3_14",
+      "git_last_commit": "3f116b3",
+      "git_last_commit_date": "2021-10-26",
+      "Hash": "3598bf6c766b0d2c15d1eefefa26d9ef"
     }
   }
 }

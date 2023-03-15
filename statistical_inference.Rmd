@@ -86,7 +86,9 @@ exploratory_dds <- estimateSizeFactors(exploratory_dds)
 
 Ces distributions semblent relativement proche. Nous pouvons également nous intéresser au lien entre la variance et la moyenne, problème bien connu des données de RNA-Seq au niveau gène.
 ```{r}
-DESeq2::plotDispEsts(exploratory_dds, ymin = 1e-08)
+# DESeq2::plotDispEsts(exploratory_dds, ymin = 0e-08)
+# Error in class(x) <- unique.default(c("AsIs", oldClass(x))) : 
+#   attempt to set an attribute on NULL
 ```
 
 ```{r}
@@ -207,7 +209,35 @@ dex_res_g <- data.frame(gene = names(qval), qval)
 ```{r}
 # Pour avoir la liste des transcrits, mais pourquoi pvalue et not padj??-> pour stageR?
 columns <- c("featureID","groupID","pvalue")
-dxr_sub <- as.data.frame(dxr[,columns])
-head(dxr)
+dxr_sub <- as.data.frame(dex_res[,columns])
+head(dxr_sub)
 ```
+
+
+## Inférence niveau transcrit avec aggrégation via Lancaster
+Cette version de l'inférence statistique se base sur l'article de Yi et al *"Gene-level differential analysis at transcript-level resolution"*. Il s'agit de faire une analyse tout d'abord au niveau transcrit via DESeq2 (sleuth dans l'article, mais le code est adapté de leur comparaison avec DESeq2), et ensuite de l'aggréger au niveau gène via la méthode de Lancaster, qui semble selon l'article plus adapté que la méthode de Sirak, qui est celle de la méthode `perGeneQValue` de DEXSeq. Cela permet entre autre de disposer d'une liste de gènes **classés** par ordre de *perturbation*, ce dont on ne disposerait pas si on utilisait uniquement la liste de transcrits.
+
+Elle permet d'avoir également les données au niveau gènes, ce qu'on a pas pas forcément avec DEXSeq. Je trouve cette approche plutôt élégante. Elle se rapproche de mon idée initiale de croiser DTE et DGE. Elle permet aussi de récupérer les gènes monotranscrits, notammelent ceux nouvellement identifiés par Isoquant.
+
+
+```{r}
+agg_dds <- DESeqDataSetFromMatrix(round(matrix_tx %>% column_to_rownames("isoform_id") %>% as.matrix),
+                                          colData = design_matrix %>% column_to_rownames("sampleID"),
+                                          ~ condition)
+agg_dds <- DESeq(agg_dds)
+agg_res <- as.data.frame(DESeq2::results(agg_dds))
+```
+
+```{r}
+agg_res$transcript <- rownames(agg_res)
+agg_res_joined <- left_join(agg_res, txdf %>% dplyr::rename("transcript" = "TXNAME", "gene" = "GENEID"), by = "transcript")
+agg_res_joined <- dplyr::select(agg_res_joined, gene, pvalue, baseMean)
+agg_summary <- agg_res_joined %>% group_by(gene) %>%
+  summarise(n = n(),
+            lancaster_pval = lancaster(pvalue, baseMean),
+            sidak_pval = sidak(pvalue)) %>%
+agg_summary$lancaster_padj <- p.adjust(agg_summary$lancaster_pval, "BH")
+```
+
+Comme cette méthode aggrège les résultats au niveau du gène, elle permet par la suite de faire de l'enrichissement sur cette liste et identifier ainsi des groupes perturbés, plutôt qu'uniquement différentiellement exprimés.
 
