@@ -217,7 +217,7 @@ head(dxr_sub)
 ## Inférence niveau transcrit avec aggrégation via Lancaster
 Cette version de l'inférence statistique se base sur l'article de Yi et al *"Gene-level differential analysis at transcript-level resolution"*. Il s'agit de faire une analyse tout d'abord au niveau transcrit via DESeq2 (sleuth dans l'article, mais le code est adapté de leur comparaison avec DESeq2), et ensuite de l'aggréger au niveau gène via la méthode de Lancaster, qui semble selon l'article plus adapté que la méthode de Sirak, qui est celle de la méthode `perGeneQValue` de DEXSeq. Cela permet entre autre de disposer d'une liste de gènes **classés** par ordre de *perturbation*, ce dont on ne disposerait pas si on utilisait uniquement la liste de transcrits.
 
-Elle permet d'avoir également les données au niveau gènes, ce qu'on a pas pas forcément avec DEXSeq. Je trouve cette approche plutôt élégante. Elle se rapproche de mon idée initiale de croiser DTE et DGE. Elle permet aussi de récupérer les gènes monotranscrits, notammelent ceux nouvellement identifiés par Isoquant.
+Elle permet d'avoir également les données au niveau gènes, ce qu'on a pas pas forcément avec DEXSeq. Je trouve cette approche plutôt élégante. Elle se rapproche de mon idée initiale de croiser DTE et DGE. Elle permet aussi de récupérer les gènes monotranscrits, notamment ceux nouvellement identifiés par Isoquant.
 
 
 ```{r}
@@ -239,5 +239,36 @@ agg_summary <- agg_res_joined %>% group_by(gene) %>%
 agg_summary$lancaster_padj <- p.adjust(agg_summary$lancaster_pval, "BH")
 ```
 
-Comme cette méthode aggrège les résultats au niveau du gène, elle permet par la suite de faire de l'enrichissement sur cette liste et identifier ainsi des groupes perturbés, plutôt qu'uniquement différentiellement exprimés.
+Comme cette méthode aggrège les résultats au niveau du gène, elle permet par la suite de faire de l'enrichissement sur cette liste et identifier ainsi des groupes perturbés, plutôt qu'uniquement différentiellement exprimés. C'est implémenté dans le papier de cette méthode.
 
+## Inférence avec IsoformSwitchAnalyzeR
+
+Normalement, cette méthode devrait donner des résultats identiques à DEXSeq en mode transcrit (puisque c'est un wrapper de cette méthode), la première méthode testée ici, si l'on utilise des filtres identiques (ce qui est presque possible). Ses auteurs mettent en avant que c'est plutôt une méthode pour l'analyse downstream que pour l'inférence statistique, qui répond à la question : que conclure une fois que l'on a identifié des transcrits utilisés différemment? Ce package pourrait nous servir afin de compléter l'information fournie par l'enrichissement obtenu après DESeq2 + Lancaster.
+
+```{r}
+
+switchList <- importRdata(
+  isoformCountMatrix = matrix_tx,
+  designMatrix = design_matrix,
+  isoformExonAnnoation = "../quants/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed.transcript_models.gtf"
+)
+switchListFiltered <- preFilter(
+  switchAnalyzeRlist = switchList,
+  geneExpressionCutoff = 1,
+  isoformExpressionCutoff = 1,
+  IFcutoff = 0.1,
+  removeSingleIsoformGenes = TRUE
+)
+switchListAnalyzed <- isoformSwitchTestDEXSeq(
+  switchAnalyzeRlist = switchListFiltered,
+  reduceToSwitchingGenes = TRUE
+)
+
+summary(switchListAnalyzed)
+
+isar_result <- left_join(switchListAnalyzed$isoformSwitchAnalysis,
+                         txdf %>% dplyr::rename("gene_id" = "GENEID", "isoform_id" = "TXNAME"),
+                         by = "isoform_id")
+
+
+```
