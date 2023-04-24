@@ -79,53 +79,8 @@ def write_split_bams(bam, bam_name, in_list, out_list, region):
     out_bam = pysam.AlignmentFile(out_bam_name, "wb", template=bam)
     mixed_bam = pysam.AlignmentFile(mixed_bam_name, "wb", template=bam)
 
-    for qname in in_list:
-        try:
-            bam_nameind.find(qname)
-        except KeyError:
-            pass
-        else:
-            match_iter = bam_nameind.find(qname)
-            all_in = True
-            for match in match_iter:
-                if match.is_secondary and match.reference_name == region:
-                    continue
-                elif match.is_secondary:
-                    all_in = False
-                    break
-            match_store = bam_nameind.find(qname)
-            if all_in:
-                for match in match_store:
-                    in_bam.write(match)
-            else:
-                print(f"Found a mixed read : {match.qname}")
-                for match in match_store:
-                    mixed_bam.write(match)
-
-    # same but for out_list
-    for qname in out_list:
-        try:
-            bam_nameind.find(qname)
-        except KeyError:
-            pass
-        else:
-            match_iter = bam_nameind.find(qname)
-            all_out = True
-            for match in match_iter:
-                if match.is_secondary and match.reference_name != region:
-                    continue
-                elif match.is_secondary:
-                    all_out = False
-                    break
-            match_store = bam_nameind.find(qname)
-            if all_out:
-                for match in match_store:
-                    out_bam.write(match)
-            else:
-                print(f"Found a mixed read : {match.qname}")
-                for match in match_store:
-                    mixed_bam.write(match)
-
+    write_match_bam(bam_nameind, in_bam, mixed_bam, in_list, region, True)
+    write_match_bam(bam_nameind, out_bam, mixed_bam, out_list, region, False)
     # import pdb; pdb.set_trace()
     # pysam.sort(in_bam_name, "-o", in_bam_sorted)
     # pysam.sort(out_bam_name, "-o", out_bam_sorted)
@@ -138,10 +93,59 @@ def write_split_bams(bam, bam_name, in_list, out_list, region):
     # os.remove(mixed_bam_name)
 
 
+def write_match_bam(source_bam, out_bam, mixed_bam, match_list, region, check_in):
+    """
+    Write reads alignements to a bam file if all alignments are in resp out of the region.
+
+    Parameters
+    ----------
+    source_bam: pysam.AlignmentFile
+    the name indexed original bam file
+    out_bam: pysam.AlignmentFile
+    the output bam
+    mixed_bam: pysam.AlignmentFile
+    the output bam if a read is aligned in and out of the region
+    match_list: list
+    a list of all the reads qnames whose primary alignments are in resp out of the region
+    region: str
+    the region's name in the fasta file
+    check_in: bool
+    Wether the reads should have all alignements in resp out of the region
+    """
+    for qname in match_list:
+       try:
+           source_bam.find(qname)
+       except KeyError:
+           pass
+       else:
+           match_iter = source_bam.find(qname)
+           all_ok = True
+           for match in match_iter:
+               if match.is_secondary:
+                   if check_in ^ match.reference_name != region:
+                       continue
+                   else:
+                       all_ok = False
+                       break
+           match_store = source_bam.find(qname)
+           if all_ok:
+               for match in match_store:
+                   out_bam.write(match)
+           else:
+               for match in match_store:
+                   print(f"Found a mixed read : {match.qname}")
+                   mixed_bam.write(match)
+
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Splits a bam file into 3 based on 1 regions. (1) Aligned reads with all secondary alignments to the region (2) - Aligned reads with all secondary alignments to the other regions (3) The rest")
+    parser = argparse.ArgumentParser(
+        description="""Splits a bam file into 3 based on one region.
+        (1) Aligned reads to the region with all secondary alignments to the region
+        (2) Aligned reads to other regions with all secondary alignments to other regions
+        (3) The rest.""",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument(
         "bam_file",
         nargs="?",
