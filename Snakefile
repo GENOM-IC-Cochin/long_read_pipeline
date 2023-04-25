@@ -7,15 +7,14 @@ SAMPLES = [
     "20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode12"
 ]
 
-ORGANISMS = ["pNLGV", "human"]
 
 configfile: "config.yaml"
 
 rule all:
     input:
-        expand(config["storage_dir"] + "aligned/{sample}_{organism}_sorted_indexed.bam", sample=SAMPLES, organism=ORGANISMS),
+        expand(config["storage_dir"] + "aligned/{sample}.bam", sample=SAMPLES),
         "qc/rnaseqc_report/multiqc_report.html",
-        config["quant_dir"] + "00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed.transcript_counts.tsv"
+        config["quant_dir"] + "00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07.transcript_model_grouped_counts.tsv"
 
 
 # Maybe add annotated junctions in bed format, to prioritize annotated splice junction.
@@ -26,40 +25,30 @@ rule minimap_align:
         fa=config["ref_fa"],
         fq=config["storage_dir"] + "{sample}.fastq"
     output:
-        human=temp("aligned/{sample}_human.bam"),
-        pNLGV=temp("aligned/{sample}_pNLGV.bam")
-
+        config["storage_dir"] + "aligned/{sample}.bam"
     threads:
         10
     shell:
-        "minimap2 -ax splice -t {threads} {input.fa} {input.fq} | "
-        "samtools view -hb -U {output.human} pNLGV:1-15489 > {output.pNLGV}"
+        "minimap2 -ax splice -t {threads} {input.fa} {input.fq} | samtools sort -@ {threads} -o {output} -"
 
 
-# rule sam2bam:
-#     input:
-#         "aligned/{sample}.sam"
-#     output:
-#         temp("aligned/{sample}.bam")
-#     shell:
-#         "samtools view -hbo {output} {input}"
-
-
-rule sort_index:
+rule index:
     input:
-        "aligned/{sample}_{organism}.bam"
+        config["storage_dir"] + "aligned/{sample}.bam"
     output:
-        config["storage_dir"] + "aligned/{sample}_{organism}_sorted_indexed.bam"
+        config["storage_dir"] + "aligned/{sample}.bam.bai"
     threads:
         4
+    params:
+        add_threads=3
     shell:
-        "samtools sort -@ {threads} {input} -o {output} && samtools index {output}"
+        "samtools index -@ {params.add_threads} {input}"
 
 
 rule rnaseqc:
     input:
         gtf=config["collaps_gtf"],
-        bam= config["storage_dir"] + "aligned/{sample}_human_sorted_indexed.bam"
+        bam= config["storage_dir"] + "aligned/{sample}.bam"
     output:
         "qc/rnaseqc/{sample}.metrics.tsv"
     params:
@@ -92,15 +81,16 @@ rule collapse_annotations:
 
 rule isoquant:
     input:
-        bam=expand(config["storage_dir"] + "aligned/{sample}_human_sorted_indexed.bam", sample=SAMPLES),
+        bam=expand(config["storage_dir"] + "aligned/{sample}.bam", sample=SAMPLES),
         bam_list="bam_list.txt",
+        bam_index=expand(config["storage_dir"] + "aligned/{sample}.bam.bai", sample=SAMPLES),
         gtf=config["gtf"],
         fa=config["ref_fa"]
     threads: 16
     params:
         output_dir=config["quant_dir"]
     output:
-        config["quant_dir"] + "00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed.transcript_counts.tsv"
+        config["quant_dir"] + "00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07.transcript_model_grouped_counts.tsv"
     shell:
         "isoquant.py --data_type ont --reference {input.fa} "
         "--genedb {input.gtf} --bam_list {input.bam_list} --force "
