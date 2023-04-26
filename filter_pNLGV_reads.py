@@ -8,7 +8,6 @@ import os
 
 import pandas as pd
 import pysam
-# j'ai des générateurs, faudra-t-il des yield?
 
 def get_primary_lists(bam, region):
     """
@@ -122,7 +121,7 @@ def write_match_bam(source_bam, out_bam, mixed_bam, match_list, region, check_in
            all_ok = True
            for match in match_iter:
                if match.is_secondary:
-                   if check_in ^ match.reference_name != region:
+                   if check_in ^ (match.reference_name != region):
                        continue
                    else:
                        all_ok = False
@@ -133,7 +132,6 @@ def write_match_bam(source_bam, out_bam, mixed_bam, match_list, region, check_in
                    out_bam.write(match)
            else:
                for match in match_store:
-                   print(f"Found a mixed read : {match.qname}")
                    mixed_bam.write(match)
 
 
