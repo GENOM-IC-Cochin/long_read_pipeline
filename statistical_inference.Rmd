@@ -55,13 +55,13 @@ rld_pca <- function(rld, config, ntop = 500) {
 
 ## Introduction
 
-Ce projet a pour but d'explorer plusieurs méthodes d'analyse d'analyse différentielle de l'épissage entre deux conditions, avec >= 3 réplicats. Les données de comptages sont obtenues grace à du séquençage long read sur ONT. Cette version explore les données de Corentin Aubé sur deux infections de cellules par deux VIH différents, séquencées en MinION. Il doit servir de *toy dataset* pour les données du futur projet de Sarah Gallois.
+Ce projet a pour but d'explorer plusieurs méthodes d'analyse d'analyse différentielle de l'épissage entre deux conditions, avec >= 3 réplicats. Les données de comptages sont obtenues grace à du séquençage long read sur ONT. Cette version explore les données de Corentin Aubé sur deux infections de cellules par deux VIH différents, séquencées en MinION. Il doit servir de *toy dataset* pour les données du futur projet de l'équipe de Sarah Gallois-Montbrun.
 
 ## EDA
-La première étape est une exploration du jeu de données (à compléter via des alignements sur VIH et un comptage des deux?)
+La première étape est une exploration du jeu de données.
 ```{r}
 samplesheet <- read_tsv("../deseq2_NLGV_4GSTm_deltaTat_A2020-deseq2Design.txt")
-matrix_tx <- read_tsv("../quants/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed.transcript_model_grouped_counts.tsv")
+matrix_tx <- read_tsv("../quants_human/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s.transcript_model_grouped_counts.tsv")
 samplesheet <- tibble(samplesheet, "tx_mat_name" = colnames(matrix_tx)[-1])
 colnames(matrix_tx) <- c("isoform_id", samplesheet$Description)
 design_matrix <- samplesheet %>% dplyr::select(Condition, Description) %>% dplyr::rename(sampleID = Description, condition = Condition)
