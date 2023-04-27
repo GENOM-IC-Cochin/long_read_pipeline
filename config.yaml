@@ -2,4 +2,4 @@ gtf: "/home/etheimer/ref_proj_paul/gencode/gencode.v43.primary_assembly.annotati
 collaps_gtf: "/home/etheimer/ref_proj_paul/gencode/gencode.v43.primary_assembly.annotation_collapsed.gtf"
 ref_fa: "/home/etheimer/ref_proj_paul/custom_ref/GRCh38.primary_assembly_pNLGV.fa.gz"
 storage_dir: "/datas/PROJETS/2023/Nanopore_Paul/tat_pas_tat/"
-quant_dir: "quants_human_hiv/"
+quant_dir: "quants_human/"
