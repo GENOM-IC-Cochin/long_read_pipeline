@@ -247,8 +247,9 @@ head(dxr_sub)
 ## Inférence niveau transcrit avec aggrégation via Lancaster
 Cette version de l'inférence statistique se base sur l'article de Yi et al *"Gene-level differential analysis at transcript-level resolution"*. Il s'agit de faire une analyse tout d'abord au niveau transcrit via DESeq2 (sleuth dans l'article, mais le code est adapté de leur comparaison avec DESeq2), et ensuite de l'aggréger au niveau gène via la méthode de Lancaster, qui semble selon l'article plus adapté que la méthode de Sirak, qui est celle de la méthode `perGeneQValue` de DEXSeq. Cela permet entre autre de disposer d'une liste de gènes **classés** par ordre de *perturbation*, ce dont on ne disposerait pas si on utilisait uniquement la liste de transcrits.
 
-Elle permet d'avoir également les données au niveau gènes, ce qu'on a pas pas forcément avec DEXSeq. Je trouve cette approche plutôt élégante. Elle se rapproche de mon idée initiale de croiser DTE et DGE. Elle permet aussi de récupérer les gènes monotranscrits, notamment ceux nouvellement identifiés par Isoquant.
+Elle permet d'avoir également les données au niveau gènes, ce qu'on a avec DEXSeq via la perGeneQValue, mais celle-ci est critiquée par les auteurs. Je trouve cette approche plutôt élégante. Elle se rapproche de mon idée initiale de croiser DTE et DGE. Elle permet aussi de récupérer les gènes monotranscrits, notamment ceux nouvellement identifiés par Isoquant.
 
+Sans utiliser le filtre DRIMSeq, on obtient le résultat suivant : 
 
 ```{r}
 agg_dds <- DESeqDataSetFromMatrix(round(matrix_tx %>% column_to_rownames("isoform_id") %>% as.matrix),
@@ -265,11 +266,32 @@ agg_res_joined <- dplyr::select(agg_res_joined, gene, pvalue, baseMean)
 agg_summary <- agg_res_joined %>% group_by(gene) %>%
   summarise(n = n(),
             lancaster_pval = lancaster(pvalue, baseMean),
-            sidak_pval = sidak(pvalue)) %>%
+            sidak_pval = sidak(pvalue))
 agg_summary$lancaster_padj <- p.adjust(agg_summary$lancaster_pval, "BH")
 ```
 
 Comme cette méthode aggrège les résultats au niveau du gène, elle permet par la suite de faire de l'enrichissement sur cette liste et identifier ainsi des groupes perturbés, plutôt qu'uniquement différentiellement exprimés. C'est implémenté dans le papier de cette méthode.
+ On peut également utiliser en entrée les transcrits filtrés par DRIMSeq, mais nous perdons donc dans ce cas-ci les gènes possédant un unique transcrit.
+  
+  ```{r}
+agg_dds_filter <- DESeqDataSetFromMatrix(round(counts(drim) %>% column_to_rownames("feature_id") %>% dplyr::select(-gene_id)),
+                                          colData = design_matrix %>% column_to_rownames("sampleID"),
+                                          ~ condition)
+agg_dds_filter <- DESeq(agg_dds_filter)
+agg_res_filter <- as.data.frame(DESeq2::results(agg_dds_filter))
+  ```
+```{r}
+agg_res_filter$transcript <- rownames(agg_res_filter)
+agg_res_filter_joined <- left_join(agg_res_filter, txdf %>% dplyr::rename("transcript" = "TXNAME", "gene" = "GENEID"), by = "transcript")
+agg_res_filter_joined <- dplyr::select(agg_res_filter_joined, gene, pvalue, baseMean)
+agg_filter_summary <- agg_res_filter_joined %>% group_by(gene) %>%
+  summarise(n = n(),
+            lancaster_pval = lancaster(pvalue, baseMean),
+            sidak_pval = sidak(pvalue))
+agg_filter_summary$lancaster_padj <- p.adjust(agg_filter_summary$lancaster_pval, "BH")
+```
+
+On observe (heureusement) une assez forte correspondance entre les gènes identifiés en partant des deux jeux de données. On note qu'en utilisant les données filtrées
 
 ## Inférence avec IsoformSwitchAnalyzeR
 
