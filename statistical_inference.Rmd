@@ -32,6 +32,11 @@ library(IsoformSwitchAnalyzeR)
 library(BSgenome.Hsapiens.UCSC.hg38)
 
 ```
+
+<!-- TODO : faire un pti chunk pour définir la place des données -->
+<!-- TODO : intégrer les figures à chaque étape, potentiellement une différente pour ISAR qui résume pas par gène -->
+<!-- TODO : implémenter stageR pour DEXSeq -->
+
 ```{r}
 rld_pca <- function(rld, config, ntop = 500) {
   rv <- matrixStats::rowVars(assay(rld))
@@ -48,6 +53,21 @@ rld_pca <- function(rld, config, ntop = 500) {
     inner_join(config, by = "sampleID") %>%
     tibble::column_to_rownames(var = "sampleID")
   list("data" = PCAdata, "variance" = variance)
+}
+
+plot_isoforms <- function(matrix_tx, txdf, genes) {
+  plot_data <- matrix_tx %>%
+    left_join(txdf %>% dplyr::rename("isoform_id" = "TXNAME", "gene_id" = "GENEID"), by = "isoform_id") %>%
+    dplyr::filter(gene_id %in% genes) %>%
+    mutate(delta = rowMeans(dplyr::select(., contains("delta"))),
+           control = rowMeans(dplyr::select(., -contains("delta") & where(is.numeric)))) %>%
+    dplyr::select(delta, control, isoform_id, gene_id) %>%
+    pivot_longer(!c(isoform_id, gene_id), names_to = "condition", values_to = "mean")
+    
+  plot_tx <- ggplot(plot_data, aes(x = isoform_id, y = mean, fill = condition)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    facet_wrap(~gene_id, scales = "free_x")
+  plot_tx
 }
 ```
 
