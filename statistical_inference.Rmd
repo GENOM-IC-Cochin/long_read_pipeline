@@ -161,14 +161,14 @@ On observe sur cette PCA que les deux conditions semblent malheureusement se rec
 
 ## DTU avec DEXSeq et DRIMSeq
 
-### Filtrer avec DEXSeq
+### Filtrer avec DRIMSeq
 
 La première analyse statistique des gènes exhibant un *differential transcript usage* est basée sur [Love et al.](https://f1000research.com/articles/7-952/v3). Ce workflow utilise DRIMSeq pour filtrer les transcrits, avant d'utiliser DEXSeq pour l'inférence.
 
 La première étape de ce pipeline implique de construire un lien entre noms de transcrits, que nous avons, et noms de gènes. Ceci est compliqué par le fait que nous avons utilisé la découverte de transcrit avec Isoquant, ce qui fait qu'un simple fichier d'annotation ne suffit pas. Donc nous allons utiliser le package `GenomicFeatures` pour importer le fichier gtf construit par Isoquant, sous la forme d'un objet TxDb. 
 
 ```{r}
-gtf <- "../quants/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed.transcript_models.gtf"
+gtf <- "../quants_human/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s.transcript_models.gtf"
 txdb_filename <- "transcript_models.sqlite"
 txdb <- makeTxDbFromGFF(gtf)
 saveDb(txdb, txdb_filename)
@@ -302,7 +302,7 @@ Normalement, cette méthode devrait donner des résultats identiques à DEXSeq e
 switchList <- importRdata(
   isoformCountMatrix = matrix_tx,
   designMatrix = design_matrix,
-  isoformExonAnnoation = "../quants/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_sorted_indexed.transcript_models.gtf"
+  isoformExonAnnoation = "../quants_human/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s.transcript_models.gtf"
 )
 switchListFiltered <- preFilter(
   switchAnalyzeRlist = switchList,
