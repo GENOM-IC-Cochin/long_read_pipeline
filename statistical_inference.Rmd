@@ -77,6 +77,16 @@ plot_isoforms <- function(matrix_tx, txdf, genes) {
 
 Ce projet a pour but d'explorer plusieurs méthodes d'analyse d'analyse différentielle de l'épissage entre deux conditions, avec >= 3 réplicats. Les données de comptages sont obtenues grace à du séquençage long read sur ONT. Cette version explore les données de Corentin Aubé sur deux infections de cellules par deux VIH différents, séquencées en MinION. Il doit servir de *toy dataset* pour les données du futur projet de l'équipe de Sarah Gallois-Montbrun.
 
+J'ai relevé trois niveaux d'analyse pour étudier les différences au niveau des transcrit entre deux conditions : 
+- étudier le DTU, *Differential Transcript Usage*, qui consiste à observer les changements dans l'expression relative entre des isoformes d'un gène. Une limite potentielle est que si le test est implémenté sous la forme de ratio, cette méthode est sensible à des variations dans les isoforms de faible expression.
+- étudier le DTE, *Differential Transcript Expression*, c'est à dire comme l'analyse classique mais au niveau transcrit. Les limitations de cette méthode est le manque potentiel de puissance statistique (augmentation du nombre de variables par rapport au niveau gène, sans augmenter le nombre de réplicats).
+- étudier le GDE, *Gene differential expression*, comme défini par Lior Pachter [ici](https://liorpachter.wordpress.com/2018/02/15/gde%C2%B2-dge%C2%B2-dtu%C2%B2-dte%E2%82%81%C2%B2-dte%E2%82%82%C2%B2/), mais qu'il est impossible d'appliquer dans le contexte du bulk RNA-seq.
+
+L'inférence statistique, pour l'heure en test, utilise tour à tour trois méthodes : 
+- DEXSeq après un filtre avec DRIMSeq, qui est une méthode de *Differential Transcript Usage*. Permet de rejeter l'hypothèse que la répartition entre les isoformes est inchangée entre les deux conditions.
+- Une méthode d'aggrégation DTE->G, qui utilise la méthode de Lancaster pour aggréger les résultats de DTE au niveau gène. Ceci donne un avantage d'interprétabilité (il est plus facile d'avoir de l'information d'annotation au niveau du gène), et qui permet, si la *p-value* ajustée est inférieure à un seuil déterminé, de rejeter l'hypothèse qu'aucun isoforme ne bouge entre les deux conditions. C'est une hypothèse nulle plus forte et donc plus intéressante à rejeter que la précédente, en revanche, en la rejetant on n'a pas l'information sur quel isoforme a provoqué son rejet.
+- Finalement il existe aussi l'implémentation IsoformSwichAnalyzeR de la première méthode. Il est difficile de vérifier si elle est exactement identique (elle semble utiliser des fractions plutôt que des différences), mais il est certain qu'elle possède un filtre différent.
+
 ## EDA
 La première étape est une exploration du jeu de données.
 ```{r}
@@ -289,6 +299,16 @@ summary(switchListAnalyzed)
 isar_result <- left_join(switchListAnalyzed$isoformSwitchAnalysis,
                          txdf %>% dplyr::rename("gene_id" = "GENEID", "isoform_id" = "TXNAME"),
                          by = "isoform_id")
-
-
 ```
+
+## Discussion
+Pour cette analyse, on observe que chaque méthode donne des résultats différents. Ceci est cependant attendu, car l'EDA, en particulier la PCA, indiquait qu'il y avait un faible regroupement des échantillons selon leur condition. De plus, étant donné le faible nombre de transcrits exprimés significativement (autour de 7000 après un filtre permissif avec DEXSeq), on pouvait s'attendre à une certaine variabilité entre les méthodes qui peuvent être sensibles différement aux outliers.
+
+On observe un gène identifié par DEXSeq après filtre par DRIMSeq, 4 par la méthode d'aggrégation de Lancaster (non-filtrée), puis 6 par la même méthode en utilisant le filtre DRIMSeq, et enfin 3 gènes selon IsoformSwitchAnalyzeR. 
+
+Le gène de DEXSeq est retrouvé IsoformSwichAnalyzeR, ce qui est normal si l'on tient compte du fait qu'IsoformSwitchAnalyzeR utilise DEXSeq en mode transcrit, la seule étape différente étant normalement le filtre préalable. Il faut également tenir compte du fait qu'ISAR et DEXSeq se concentre sur le DTU, mais que pour le second nous utilisons sa fonction `perGeneQValue`, qui permet d'identifier quels gènes ont au moins un transcrit dont la proportion change entre les conditions. La méthode d'aggrégation utilisée, Šidák, considère que les tests individuels sur les transcrits sont indépendants, une hypothèse que ne fait pas de la méthode Lancaster. Celle-ci fait ressortir des gènes différents des deux autres méthodes. Selon l'article qui la présente, cette méthode d'aggrégation est censée faire ressortir les gènes pour lesquels les transcrits évoluent dans des sens différents entre les conditions. Dans notre cas cependant, tous les gènes identifiés ainsi ont des transcrits se comportant de la même façon.
+
+Il est difficile à ce point de faire ressortir une méthode par rapport à une autre, étant donné les limitations du jeu de données. Qualitativement cependant, en observant les expressions des transcrits des gènes identifiés, la méthode d'aggrégation Lancaster semble surtout identifier des gènes dont les transcrits sont tous différentiellement exprimés dans le même sens, tandis que les deux autres identifient des gènes dont l'isoforme majeur seulement varie.
+
+## Perspective
+En l'absence de données plus proches de celle que l'on pense obtenir à la fin du séquençage, il me semble plus prudent de conserver toutes ces méthodes dans notre analyse. Peut-être qu'une étape de simulation pour mieux discerner la meilleure de ces méthodes pourrait être pertinente, mais ce serait un projet potentiellement trop long pour le temps restant. Une alternative pour étudier le comportement de chacun de ces outils, surtout des deux qui résument l'information au niveau gène, serait d'établir une classification du type de gène identifié, comme : isoforme majeur uniquement, cancellation, collapsing, domination (classification de Yi et al)...
