@@ -3,6 +3,10 @@ title: "HIV Long Read"
 author: "Paul Etheimer"
 date: '2023-03-09'
 output: html_document
+params:
+  gtf: ../quants_human/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s.transcript_models.gtf
+  quants: ../quants_human/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s.transcript_model_grouped_counts.tsv
+  design: ../deseq2_NLGV_4GSTm_deltaTat_A2020-deseq2Design.txt
 ---
 
 ```{r setup, include=FALSE}
@@ -33,7 +37,6 @@ library(BSgenome.Hsapiens.UCSC.hg38)
 
 ```
 
-<!-- TODO : faire un pti chunk pour définir la place des données -->
 <!-- TODO : intégrer les figures à chaque étape, potentiellement une différente pour ISAR qui résume pas par gène -->
 <!-- TODO : implémenter stageR pour DEXSeq -->
 
@@ -90,8 +93,8 @@ L'inférence statistique, pour l'heure en test, utilise tour à tour trois méth
 ## EDA
 La première étape est une exploration du jeu de données.
 ```{r}
-samplesheet <- read_tsv("../deseq2_NLGV_4GSTm_deltaTat_A2020-deseq2Design.txt")
-matrix_tx <- read_tsv("../quants_human/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s.transcript_model_grouped_counts.tsv")
+samplesheet <- read_tsv(params$design)
+matrix_tx <- read_tsv(params$quants)
 samplesheet <- tibble(samplesheet, "tx_mat_name" = colnames(matrix_tx)[-1])
 colnames(matrix_tx) <- c("isoform_id", samplesheet$Description)
 design_matrix <- samplesheet %>% dplyr::select(Condition, Description) %>% dplyr::rename(sampleID = Description, condition = Condition)
@@ -168,7 +171,7 @@ La première analyse statistique des gènes exhibant un *differential transcript
 La première étape de ce pipeline implique de construire un lien entre noms de transcrits, que nous avons, et noms de gènes. Ceci est compliqué par le fait que nous avons utilisé la découverte de transcrit avec Isoquant, ce qui fait qu'un simple fichier d'annotation ne suffit pas. Donc nous allons utiliser le package `GenomicFeatures` pour importer le fichier gtf construit par Isoquant, sous la forme d'un objet TxDb. 
 
 ```{r}
-gtf <- "../quants_human/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s.transcript_models.gtf"
+gtf <- params$gtf
 txdb_filename <- "transcript_models.sqlite"
 txdb <- makeTxDbFromGFF(gtf)
 saveDb(txdb, txdb_filename)
@@ -273,13 +276,13 @@ agg_summary$lancaster_padj <- p.adjust(agg_summary$lancaster_pval, "BH")
 Comme cette méthode aggrège les résultats au niveau du gène, elle permet par la suite de faire de l'enrichissement sur cette liste et identifier ainsi des groupes perturbés, plutôt qu'uniquement différentiellement exprimés. C'est implémenté dans le papier de cette méthode.
  On peut également utiliser en entrée les transcrits filtrés par DRIMSeq, mais nous perdons donc dans ce cas-ci les gènes possédant un unique transcrit.
   
-  ```{r}
+```{r}
 agg_dds_filter <- DESeqDataSetFromMatrix(round(counts(drim) %>% column_to_rownames("feature_id") %>% dplyr::select(-gene_id)),
                                           colData = design_matrix %>% column_to_rownames("sampleID"),
                                           ~ condition)
 agg_dds_filter <- DESeq(agg_dds_filter)
 agg_res_filter <- as.data.frame(DESeq2::results(agg_dds_filter))
-  ```
+```
 ```{r}
 agg_res_filter$transcript <- rownames(agg_res_filter)
 agg_res_filter_joined <- left_join(agg_res_filter, txdf %>% dplyr::rename("transcript" = "TXNAME", "gene" = "GENEID"), by = "transcript")
@@ -302,7 +305,7 @@ Normalement, cette méthode devrait donner des résultats identiques à DEXSeq e
 switchList <- importRdata(
   isoformCountMatrix = matrix_tx,
   designMatrix = design_matrix,
-  isoformExonAnnoation = "../quants_human/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s.transcript_models.gtf"
+  isoformExonAnnoation = params$gtf
 )
 switchListFiltered <- preFilter(
   switchAnalyzeRlist = switchList,
@@ -333,4 +336,5 @@ Le gène de DEXSeq est retrouvé IsoformSwichAnalyzeR, ce qui est normal si l'on
 Il est difficile à ce point de faire ressortir une méthode par rapport à une autre, étant donné les limitations du jeu de données. Qualitativement cependant, en observant les expressions des transcrits des gènes identifiés, la méthode d'aggrégation Lancaster semble surtout identifier des gènes dont les transcrits sont tous différentiellement exprimés dans le même sens, tandis que les deux autres identifient des gènes dont l'isoforme majeur seulement varie.
 
 ## Perspective
+
 En l'absence de données plus proches de celle que l'on pense obtenir à la fin du séquençage, il me semble plus prudent de conserver toutes ces méthodes dans notre analyse. Peut-être qu'une étape de simulation pour mieux discerner la meilleure de ces méthodes pourrait être pertinente, mais ce serait un projet potentiellement trop long pour le temps restant. Une alternative pour étudier le comportement de chacun de ces outils, surtout des deux qui résument l'information au niveau gène, serait d'établir une classification du type de gène identifié, comme : isoforme majeur uniquement, cancellation, collapsing, domination (classification de Yi et al)...
