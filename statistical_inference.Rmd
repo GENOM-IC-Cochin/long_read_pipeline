@@ -200,7 +200,7 @@ La première étape de ce pipeline implique de construire un lien entre noms de 
 gtf <- params$gtf
 txdb_filename <- "transcript_models.sqlite"
 txdb <- makeTxDbFromGFF(gtf)
-saveDb(txdb, txdb_filename)
+invisible(saveDb(txdb, txdb_filename))
 txdf <- AnnotationDbi::select(txdb, keys(txdb, "GENEID"), "TXNAME", "GENEID")
 # tab <- table(txdf$GENEID) not used?
 # txdf$ntx <- tab[match(txdf$GENEID, names(tab))]
@@ -326,26 +326,24 @@ On observe (heureusement) une assez forte correspondance entre les gènes identi
 
 Normalement, cette méthode devrait donner des résultats identiques à DEXSeq en mode transcrit (puisque c'est un wrapper de cette méthode), la première méthode testée ici, si l'on utilise des filtres identiques (ce qui est presque possible). Ses auteurs mettent en avant que c'est plutôt une méthode pour l'analyse downstream que pour l'inférence statistique, qui répond à la question : que conclure une fois que l'on a identifié des transcrits utilisés différemment? Ce package pourrait nous servir afin de compléter l'information fournie par l'enrichissement obtenu après DESeq2 + Lancaster.
 
-```{r}
+```{r, cache = TRUE}
 
-switchList <- importRdata(
+switchList <- invisible(importRdata(
   isoformCountMatrix = matrix_tx,
   designMatrix = design_matrix,
   isoformExonAnnoation = params$gtf
-)
-switchListFiltered <- preFilter(
+))
+switchListFiltered <- invisible(preFilter(
   switchAnalyzeRlist = switchList,
   geneExpressionCutoff = 1,
   isoformExpressionCutoff = 1,
   IFcutoff = 0.1,
   removeSingleIsoformGenes = TRUE
-)
-switchListAnalyzed <- isoformSwitchTestDEXSeq(
+))
+switchListAnalyzed <- invisible(isoformSwitchTestDEXSeq(
   switchAnalyzeRlist = switchListFiltered,
   reduceToSwitchingGenes = TRUE
-)
-
-summary(switchListAnalyzed)
+))
 
 isar_result <- left_join(switchListAnalyzed$isoformSwitchAnalysis,
                          txdf %>% dplyr::rename("gene_id" = "GENEID", "isoform_id" = "TXNAME"),
