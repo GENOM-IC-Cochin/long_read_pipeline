@@ -36,9 +36,21 @@ library(IsoformSwitchAnalyzeR)
 library(BSgenome.Hsapiens.UCSC.hg38)
 
 ```
+```{css}
+div.figure {
+  display: block;
+  text-align: center;
+}
+p.caption {
+  font-size: 0.8em;
+}
 
-<!-- TODO : intégrer les figures à chaque étape, potentiellement une différente pour ISAR qui résume pas par gène -->
+```
+
+
 <!-- TODO : implémenter stageR pour DEXSeq -->
+<!-- TODO : Faire une DGE classique pour la comparer à la sortie de Lancaster -->
+
 
 ```{r}
 rld_pca <- function(rld, config, ntop = 500) {
