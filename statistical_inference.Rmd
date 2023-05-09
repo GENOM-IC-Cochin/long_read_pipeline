@@ -186,7 +186,7 @@ plot_res <- ggplot(
 plot_res
 ```
 
-On observe sur cette PCA que les deux conditions semblent malheureusement se recouvrir, notamment à cause d'un échantillon particulier du groupe contrôle. Si dans un cas général nous ne poursuivrions peut-être pas l'analyse, ici comme le but est d'écrire un modèle d'analyse, nous allons continuer.
+On observe sur cette PCA que les deux conditions semblent malheureusement se recouvrir, notamment à cause d'un échantillon particulier du groupe contrôle. Si dans un cas général nous ne poursuivrions peut-être pas l'analyse, ici, comme le but est de tester des méthodes, nous allons continuer.
 
 ## DTU avec DEXSeq et DRIMSeq
 
@@ -265,18 +265,36 @@ dex_res <- DEXSeqResults(dex, independentFiltering = FALSE)
 qval <- perGeneQValue(dex_res)
 dex_res_g <- data.frame(gene = names(qval), qval)
 ```
-```{r}
-# Pour avoir la liste des transcrits, mais pourquoi pvalue et not padj??-> pour stageR?
-columns <- c("featureID","groupID","pvalue")
-dxr_sub <- as.data.frame(dex_res[,columns])
-head(dxr_sub)
+```{r, fig.cap="Gènes dont des transcrits sont différentiellement exprimés selon DEXSeq"}
+genes_sig <- dex_res_g %>% filter(qval < 0.05) %>% pull(gene)
+plot_isoforms(matrix_tx, txdf, genes = genes_sig)
+```
+On observe qu'un seul gène est mis en avant par DEXSeq, mais en observant les transcrits différentiellement exprimés, il existe un second gène dont l'aggrégation n'est pas significative, mais avec deux transcrits possédant un usage différentiel.
+
+```{r, fig.cap="Gènes non significatifs, mais possédant des transcrits siginificatifs"}
+genes_tr_sig <- dex_res %>%
+  as.data.frame() %>%
+  filter(padj < 0.05) %>%
+  pull(groupID)
+tr_sig_not_genes <- setdiff(genes_tr_sig, genes_sig)
+plot_isoforms(matrix_tx, txdf, tr_sig_not_genes)
 ```
 
 
-## Inférence niveau transcrit avec aggrégation via Lancaster
-Cette version de l'inférence statistique se base sur l'article de Yi et al *"Gene-level differential analysis at transcript-level resolution"*. Il s'agit de faire une analyse tout d'abord au niveau transcrit via DESeq2 (sleuth dans l'article, mais le code est adapté de leur comparaison avec DESeq2), et ensuite de l'aggréger au niveau gène via la méthode de Lancaster, qui semble selon l'article plus adapté que la méthode de Sirak, qui est celle de la méthode `perGeneQValue` de DEXSeq. Cela permet entre autre de disposer d'une liste de gènes **classés** par ordre de *perturbation*, ce dont on ne disposerait pas si on utilisait uniquement la liste de transcrits.
+<!-- ```{r} -->
+<!-- # Pour avoir la liste des transcrits, mais pourquoi pvalue et not padj??-> pour stageR? -->
+<!-- columns <- c("featureID","groupID","pvalue") -->
+<!-- dxr_sub <- as.data.frame(dex_res[,columns]) -->
+<!-- head(dxr_sub) -->
+<!-- ``` -->
 
-Elle permet d'avoir également les données au niveau gènes, ce qu'on a avec DEXSeq via la perGeneQValue, mais celle-ci est critiquée par les auteurs. Je trouve cette approche plutôt élégante. Elle se rapproche de mon idée initiale de croiser DTE et DGE. Elle permet aussi de récupérer les gènes monotranscrits, notamment ceux nouvellement identifiés par Isoquant.
+Visuellement, les deux gènes indiqués semblent bien différentiellement exprimés, dans des sens opposés. Le second apparaît même comme plus convaincant que le premier, mais comme nous n'avons pas représenté les valeurs de dispersions, qui peuvent être la raison pour laquelle il n'est pas significatif.
+
+## Inférence niveau transcrit avec aggrégation via Lancaster
+
+Cette version de l'inférence statistique se base sur l'article de Yi et al *"Gene-level differential analysis at transcript-level resolution"*. Il s'agit de faire une analyse tout d'abord au niveau transcrit via DESeq2 (sleuth dans l'article, mais le code est adapté de leur comparaison avec DESeq2), et ensuite de l'aggréger au niveau gène via la méthode de Lancaster, qui semble selon l'article plus adapté que la méthode de Sirak, qui est celle de la méthode `perGeneQValue` de DEXSeq, qui permet de résumer l'information transcrit au niveau gène. Cela permet entre autre de disposer d'une liste de gènes **classés** par ordre de *perturbation*, ce dont on ne disposerait pas si on utilisait uniquement la liste de transcrits.
+
+Elle permet d'avoir également les données au niveau gènes, ce qu'on a avec DEXSeq via la `perGeneQValue`, mais celle-ci est critiquée par les auteurs. Je trouve cette approche plutôt élégante. Elle se rapproche de mon idée initiale de croiser DTE et DGE. Elle permet aussi de récupérer les gènes monotranscrits, notamment ceux nouvellement identifiés par Isoquant.
 
 Sans utiliser le filtre DRIMSeq, on obtient le résultat suivant : 
 
@@ -299,7 +317,17 @@ agg_summary <- agg_res_joined %>% group_by(gene) %>%
 agg_summary$lancaster_padj <- p.adjust(agg_summary$lancaster_pval, "BH")
 ```
 
-Comme cette méthode aggrège les résultats au niveau du gène, elle permet par la suite de faire de l'enrichissement sur cette liste et identifier ainsi des groupes perturbés, plutôt qu'uniquement différentiellement exprimés. C'est implémenté dans le papier de cette méthode.
+```{r, fig.cap="Gènes identifiés par la méthode d'aggrégation de Lancaster, données non filtrées"}
+genes_lanc <- agg_summary %>%
+  filter(lancaster_padj < 0.05) %>%
+  pull(gene)
+plot_isoforms(matrix_tx, txdf, genes_lanc)
+```
+
+On observe que cette méthode identifie des gènes différents de DEXSeq. En outre, les transcrits de tous ces gènes semblent être modifiés dans une direction identique, contrairement à DEXSeq qui semble identifier des (deux) gènes dont seul le transcrit majoritaire est exprimé différemment entre les deux conditions. Ceci va à l'encontre des exemples présentés dans les figures de l'article de Yi et al, mais cette différence pourrait être liée à nos données plutôt que la méthode.
+
+L'aggrégation des résultats au niveau du gène permet par la suite de faire de l'enrichissement sur cette liste et identifier ainsi des groupes perturbés, plutôt qu'uniquement différentiellement exprimés. C'est implémenté dans l'article de Yi et al, et nous pourrions faire de même.
+
  On peut également utiliser en entrée les transcrits filtrés par DRIMSeq, mais nous perdons donc dans ce cas-ci les gènes possédant un unique transcrit.
   
 ```{r}
@@ -320,11 +348,32 @@ agg_filter_summary <- agg_res_filter_joined %>% group_by(gene) %>%
 agg_filter_summary$lancaster_padj <- p.adjust(agg_filter_summary$lancaster_pval, "BH")
 ```
 
-On observe (heureusement) une assez forte correspondance entre les gènes identifiés en partant des deux jeux de données. On note qu'en utilisant les données filtrées
+
+```{r, fig.cap="Gènes identifiés par la méthode d'aggrégation de Lancaster, données filtrées"}
+genes_lanc_fil <- agg_filter_summary %>%
+  filter(lancaster_padj < 0.05) %>%
+  pull(gene)
+plot_isoforms(matrix_tx, txdf, genes_lanc_fil)
+```
+
+On observe (heureusement) une assez forte correspondance entre les gènes identifiés en partant des deux jeux de données, filtrés ou non. On note qu'en utilisant les données filtrée, nous obtenons plus de gènes avec cette méthode. Cela est certainement liée à un gain de sensitivité lié à une correction de test multiple moins drastique que précédemment.
+Étonnamment, cette méthode ne semble identifier que des gènes/transcrits surexprimés dans delta tat par rapport au contrôle. En prenant le top 30 des gènes selon leur p-valeur
+
+```{r, fig.cap="Top 30 des gènes selon leur pvaleur"}
+top_diff_genes <- agg_filter_summary %>% slice_min(lancaster_pval, n = 30) %>% pull(gene)
+plot_isoforms(matrix_tx, txdf, top_diff_genes)
+```
+En représentant le top 30 des gènes selon la pvaleur (Lancaster), on observe que la plupart des gènes semblent appartenir à la même catégorie que les 6 réellement significatifs à $\alpha < 0.05$. En effet la plupart indiquent des gènes dont les transcrits sont *unanimes*, à rebours de ce que mettait en avant Yi et al. Je peux trouver deux explications à cet différence inatendue : 
+- Yi et al a cherry-picked ses exemples mais ils sont plutôt rares en réalité (pas très charitable)
+- La découverte de nouveaux transcrits d'Isoquant crée de nombreux faux positifs qui sont en fait des transcrits déjà connus, et qui suivent très logiquement la même dynamique que les *"vrais"* transcrits. Donc cette relative unanimité est le fruit de l'imprécision de Nanopore couplée à la découverte tolérante de nouveaux transcrits d'Isoquant.
+- Cette méthode, à mis chemin entre le niveau de résolution gène et transcrit, trouve des résultats qui sont également à mi-chemin.
+- Le nombre de réplicats pourrait être une différence entre les figures de l'article et les nôtres. Mais il me semble que c'est du 3v3.
+
+![Exemples de transcrits ne bougeant pas dans le même sens, Yi et al](./not_unanimous_yi.png)
 
 ## Inférence avec IsoformSwitchAnalyzeR
 
-Normalement, cette méthode devrait donner des résultats identiques à DEXSeq en mode transcrit (puisque c'est un wrapper de cette méthode), la première méthode testée ici, si l'on utilise des filtres identiques (ce qui est presque possible). Ses auteurs mettent en avant que c'est plutôt une méthode pour l'analyse downstream que pour l'inférence statistique, qui répond à la question : que conclure une fois que l'on a identifié des transcrits utilisés différemment? Ce package pourrait nous servir afin de compléter l'information fournie par l'enrichissement obtenu après DESeq2 + Lancaster.
+Normalement, cette méthode devrait donner des résultats identiques à DEXSeq en mode transcrit (puisque c'est un wrapper de cette méthode), la première méthode testée ici, si l'on utilise des filtres identiques (ce qui est presque possible). Ses auteurs mettent en avant que c'est plutôt une méthode pour l'analyse *downstream* que pour l'inférence statistique, qui répond à la question : que conclure une fois que l'on a identifié des transcrits utilisés différemment? Ce package pourrait nous servir afin de compléter l'information fournie par l'enrichissement obtenu après DESeq2 + Lancaster.
 
 ```{r, cache = TRUE}
 
@@ -350,15 +399,31 @@ isar_result <- left_join(switchListAnalyzed$isoformSwitchAnalysis,
                          by = "isoform_id")
 ```
 
+Les résultats sont en effet très proches de ceux identifiés par la première méthode, ce qui est attendu. 
+
+```{r, fig.cap="Transcrits identifiés par ISAR, représentés dans le contexte de leurs gènes"}
+isar_genes <- isar_result %>%
+  filter(padj < 0.05) %>%
+  pull(gene_id) %>%
+  unique()
+plot_isoforms(matrix_tx, txdf, isar_genes)
+```
+IsoformSwitchAnalyzeR ne dispose pas de méthode d'aggrégation, donc impossible de classer les gènes par ordre d'importance/significativité. Il est uniquement possible d'afficher les gènes possédant des transcrits différentiellement exprimés. Ceci peut compliquer l'enrichissement par la suite.
+
 ## Discussion
-Pour cette analyse, on observe que chaque méthode donne des résultats différents. Ceci est cependant attendu, car l'EDA, en particulier la PCA, indiquait qu'il y avait un faible regroupement des échantillons selon leur condition. De plus, étant donné le faible nombre de transcrits exprimés significativement (autour de 7000 après un filtre permissif avec DEXSeq), on pouvait s'attendre à une certaine variabilité entre les méthodes qui peuvent être sensibles différement aux outliers.
+Pour cette analyse, on observe que chaque méthode donne des résultats différents. Ceci est cependant attendu, car l'EDA, en particulier la PCA, indiquait qu'il y avait un faible regroupement des échantillons selon leur condition. De plus, étant donné le faible nombre de transcrits exprimés significativement (autour de 7000 après un filtre, permissif, avec DRIMSeq), on pouvait s'attendre à une certaine variabilité entre les méthodes qui peuvent être sensibles différemment aux outliers.
 
 On observe un gène identifié par DEXSeq après filtre par DRIMSeq, 4 par la méthode d'aggrégation de Lancaster (non-filtrée), puis 6 par la même méthode en utilisant le filtre DRIMSeq, et enfin 3 gènes selon IsoformSwitchAnalyzeR. 
 
-Le gène de DEXSeq est retrouvé IsoformSwichAnalyzeR, ce qui est normal si l'on tient compte du fait qu'IsoformSwitchAnalyzeR utilise DEXSeq en mode transcrit, la seule étape différente étant normalement le filtre préalable. Il faut également tenir compte du fait qu'ISAR et DEXSeq se concentre sur le DTU, mais que pour le second nous utilisons sa fonction `perGeneQValue`, qui permet d'identifier quels gènes ont au moins un transcrit dont la proportion change entre les conditions. La méthode d'aggrégation utilisée, Šidák, considère que les tests individuels sur les transcrits sont indépendants, une hypothèse que ne fait pas de la méthode Lancaster. Celle-ci fait ressortir des gènes différents des deux autres méthodes. Selon l'article qui la présente, cette méthode d'aggrégation est censée faire ressortir les gènes pour lesquels les transcrits évoluent dans des sens différents entre les conditions. Dans notre cas cependant, tous les gènes identifiés ainsi ont des transcrits se comportant de la même façon.
+Le gène de DEXSeq est retrouvé IsoformSwichAnalyzeR, ce qui est normal si l'on tient compte du fait qu'IsoformSwitchAnalyzeR utilise DEXSeq en mode transcrit, la seule étape différente étant normalement le filtre préalable. Il faut également tenir compte du fait qu'ISAR et DEXSeq se concentre sur le DTU, mais que pour le second nous utilisons sa fonction `perGeneQValue`, qui permet d'identifier quels gènes ont au moins un transcrit dont la proportion change entre les conditions. La méthode d'aggrégation utilisée, Šidák, considère que les tests individuels sur les transcrits sont indépendants, une hypothèse que ne fait pas de la méthode Lancaster. Celle-ci fait ressortir des gènes différents des deux autres méthodes. Selon l'article qui la présente, cette méthode d'aggrégation est censée faire ressortir les gènes pour lesquels les transcrits évoluent dans des sens différents entre les conditions. Dans notre cas cependant, tous les gènes identifiés ainsi ont des transcrits se comportant de la même façon. 
 
-Il est difficile à ce point de faire ressortir une méthode par rapport à une autre, étant donné les limitations du jeu de données. Qualitativement cependant, en observant les expressions des transcrits des gènes identifiés, la méthode d'aggrégation Lancaster semble surtout identifier des gènes dont les transcrits sont tous différentiellement exprimés dans le même sens, tandis que les deux autres identifient des gènes dont l'isoforme majeur seulement varie.
+Il est difficile à ce point de faire ressortir une méthode par rapport à une autre, étant donné les limitations du jeu de données. Il me semble cependant que DEXSeq semble répondre plus directement à la question initiale, d'identifier quel transcrit bouge à l'intérieur d'un gène. Néanmoins, la méthode d'aggrégation de Lancaster pourrait nous permettre de considérer un plus large nombre de gènes, avec sa méthode à l'intersection du niveau gène et transcrits.
+
 
 ## Perspective
 
-En l'absence de données plus proches de celle que l'on pense obtenir à la fin du séquençage, il me semble plus prudent de conserver toutes ces méthodes dans notre analyse. Peut-être qu'une étape de simulation pour mieux discerner la meilleure de ces méthodes pourrait être pertinente, mais ce serait un projet potentiellement trop long pour le temps restant. Une alternative pour étudier le comportement de chacun de ces outils, surtout des deux qui résument l'information au niveau gène, serait d'établir une classification du type de gène identifié, comme : isoforme majeur uniquement, cancellation, collapsing, domination (classification de Yi et al)...
+En l'absence de données plus proches de celle que l'on pense obtenir à la fin du séquençage, il me semble plus prudent de conserver toutes ces méthodes dans notre analyse, ou au minimum DEXSeq et DESeq2 + Lancaster. Peut-être qu'une étape de simulation pour mieux discerner la meilleure de ces méthodes pourrait être pertinente, mais ce serait un projet potentiellement trop long pour le temps restant. Une alternative pour étudier le comportement de chacun de ces outils, surtout des deux qui résument l'information au niveau gène, serait d'établir une classification du type de gène identifié, comme : isoforme majeur uniquement, cancellation, collapsing, domination (classification de Yi et al, confère sa figure)...
+
+Une des questions importantes pour le choix de méthode est également l'exploitation *downstream* des listes de gènes/transcrits. Si l'on part du principe que de nombreux gènes/transcrits vont être identifiés (500 gènes n'est pas hors du commun en RNA-Seq classique), l'enrichissement via ORA/GSEA, qui se servira des annotations disponibles dans les bases de données pourrait être primordial, pour faire le tri dans cette grande quantité d'information. Or, comme les transcrits sont rarement annotés, une méthode d’agrégation telle que celles de DEXSeq, Lancaster, pourrait être nécessaire. Une fois la liste de gènes d'intérêt resserrée, il s'agira d'obtenir de l'information sur les différences biologiques entre transcrits. Pour cette partie, ISAR semble être très intéressant, proposant des figures déjà prêtes et permettant d'intégrer des bases de données, de familles protéiques par exemple. Mais si le nombre de transcrits que l'on souhaite disséquer est faible, il est toujours possible de réaliser cette étape à la main, et se passer de la lecture du manuel assez épais d'IsoformSwitchAnalyzeR. Cette approche pourrait être complémentée grâce à `gget`, outil qui permet de réunir de nombreuses informations issues de base de données génomiques, blast, UniProt...
+
+Pour ces deux possibilités d'analyse des résultats de l'inférence statistique, je ne peux pas les tester sur les données de délétion de Tat étant donné le faible nombre de gènes/transcrits identifiés. Je pourrais cependant essayer de récupérer des données, pour appliquer les deux méthodes successivement, et vous présenter un autre rapport pour évaluer si c'est le type de résultats qui a du sens pour vous.
