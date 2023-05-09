@@ -143,27 +143,27 @@ exploratory_dds <- estimateSizeFactors(exploratory_dds)
 ```
 
 
-Ces distributions semblent relativement proche. Nous pouvons également nous intéresser au lien entre la variance et la moyenne, problème bien connu des données de RNA-Seq au niveau gène.
-```{r}
-# DESeq2::plotDispEsts(exploratory_dds, ymin = 0e-08)
-# Error in class(x) <- unique.default(c("AsIs", oldClass(x))) : 
-#   attempt to set an attribute on NULL
-```
+<!-- Ces distributions semblent relativement proche. Nous pouvons également nous intéresser au lien entre la variance et la moyenne, problème bien connu des données de RNA-Seq au niveau gène. -->
+<!-- ```{r} -->
+<!-- # DESeq2::plotDispEsts(exploratory_dds, ymin = 0e-08) -->
+<!-- # Error in class(x) <- unique.default(c("AsIs", oldClass(x))) :  -->
+<!-- #   attempt to set an attribute on NULL -->
+<!-- ``` -->
 
-```{r}
-library(vsn)
-library(hexbin)
-meanSdPlot(assay(normTransform(exploratory_dds)))
-```
+<!-- ```{r} -->
+<!-- library(vsn) -->
+<!-- library(hexbin) -->
+<!-- meanSdPlot(assay(normTransform(exploratory_dds))) -->
+<!-- ``` -->
 
-```{r}
-meanSdPlot(assay(rlog(exploratory_dds)))
-```
-```{r}
-meanSdPlot(assay(vst(exploratory_dds)))
-```
+<!-- ```{r} -->
+<!-- meanSdPlot(assay(rlog(exploratory_dds))) -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- meanSdPlot(assay(vst(exploratory_dds))) -->
+<!-- ``` -->
 
-Ces trois visualisations nous indique que le lien de la variance avec la moyenne de nos comptes de transcrits est assez faible quelque soit la transformation, et que la transformation la plus pertinente semble la transformation log la plus classique
+<!-- Ces trois visualisations nous indique que le lien de la variance avec la moyenne de nos comptes de transcrits est assez faible quelque soit la transformation, et que la transformation la plus pertinente semble la transformation log la plus classique -->
 
 ```{r}
 log_tr <- normTransform(exploratory_dds)
