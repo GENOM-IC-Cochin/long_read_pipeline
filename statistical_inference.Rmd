@@ -80,8 +80,22 @@ plot_isoforms <- function(matrix_tx, txdf, genes) {
     pivot_longer(!c(isoform_id, gene_id), names_to = "condition", values_to = "mean")
     
   plot_tx <- ggplot(plot_data, aes(x = isoform_id, y = mean, fill = condition)) +
-    geom_bar(stat = "identity", position = "dodge") +
-    facet_wrap(~gene_id, scales = "free_x")
+    geom_bar(stat = "identity", position = "dodge") 
+  if(length(genes) == 1) {
+    plot_tx <- plot_tx +
+      scale_x_discrete(guide = guide_axis(n.dodge = 2)) +
+      facet_wrap(~gene_id, scales = "free_x")
+  } else if (length(genes) < 8) {
+    plot_tx <- plot_tx +
+      scale_x_discrete(guide = guide_axis(angle = 45)) +
+      theme(axis.text.x = element_text(size = 5)) +
+      facet_wrap(~gene_id, scales = "free")
+  } else {
+    plot_tx <- plot_tx +
+      theme(axis.text.x = element_blank()) +
+      facet_wrap(~gene_id, scales = "free")
+  }
+  
   plot_tx
 }
 ```
