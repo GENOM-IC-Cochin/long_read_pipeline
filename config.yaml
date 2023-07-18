@@ -1,5 +1,24 @@
-gtf: "/home/etheimer/ref_proj_paul/gencode/gencode.v43.primary_assembly.annotation.gtf"
-collaps_gtf: "/home/etheimer/ref_proj_paul/gencode/gencode.v43.primary_assembly.annotation_collapsed.gtf"
-ref_fa: "/home/etheimer/ref_proj_paul/custom_ref/GRCh38.primary_assembly_pNLGV.fa.gz"
-storage_dir: "/datas/PROJETS/2023/Nanopore_Paul/tat_pas_tat/"
+# Welcome to the config file of GENOM'IC's long read splicing analysis pipeline.
+
+# This config file needs raw data (fastq), references (gtf, fasta), and a samplesheet.
+# Optionaly, this pipeline can align on a pathogen/host reference and filter out the pathogen-aligning reads.
+
+
+# references
+gtf: "/home/etheimer/storage/Nanopore_data/tat_pas_tat_v2/gencode.v43.primary_assembly.annotation.gtf"
+collaps_gtf: "/home/etheimer/storage/Nanopore_data/tat_pas_tat_v2/gencode.v43.primary_assembly.annotation_collapsed.gtf"
+ref_fa: "/home/etheimer/storage/Nanopore_data/tat_pas_tat_v2/GRCh38.primary_assembly_pNLGV.fa.gz"
+
+# samplesheet
+samplesheet: "../simple_design_matrix.tsv"
+
+# fastq directory
+fastq_dir: "/home/etheimer/storage/Nanopore_data/tat_pas_tat_v2/fastqs/"
+
+# output directories
 quant_dir: "quants_human/"
+bam_dir: "/home/etheimer/storage/Nanopore_data/tat_pas_tat_v2/bams/"
+
+# Filter
+filter_path: "yes"
+bed_file: "viral_chr.bed"

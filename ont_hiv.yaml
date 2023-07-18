@@ -1,0 +1,12 @@
+name: ont_hiv
+channels:
+    - bioconda
+    - conda-forge
+    - defaults
+dependencies:
+    - isoquant
+    - snakemake
+    - rna-seqc
+    - bx-python
+    - multiqc
+    - minimap2

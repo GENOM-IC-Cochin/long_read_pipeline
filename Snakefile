@@ -1,21 +1,45 @@
-SAMPLES = [
-    "20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07",
-    "20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode08",
-    "20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode09",
-    "20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode10",
-    "20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode11",
-    "20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode12"
-]
+configfile: "config.yaml"
 
+import os
+import sys
+
+import pandas as pd
+
+SAMPLES = [fastq_name.split(".")[0] for fastq_name in os.listdir(config["fastq_dir"]) if "fastq" in fastq_name or "fq" in fastq_name]
 ORGANISMS = ["pNLGV", "human"]
 
-configfile: "config.yaml"
+samplesheet = pd.read_csv(config["samplesheet"], sep = "\t")
+
+if not set(samplesheet["sampleID"].to_list()) == set(SAMPLES):
+    sys.exit("""Mismatch between the samplesheet and the fastq names :
+                the sampleID column must consist of the names of the fastq files.""")
+
+with open("bam_list.txt", "w") as fileout:
+    for _, row in samplesheet.iterrows():
+        fileout.write(f"{config['bam_dir']}{row['sampleID']}_human_s.bam:{row['sampleID']}\n")
+
+
+qc_rep = "qc/rnaseqc_report/multiqc_report.html"
+counts = config["quant_dir"] + "ALL_SAMPLES/ALL_SAMPLES.transcript_model_grouped_counts.tsv"
+diff_res = "analysis/adjusted_gene_transcript_pval_005.csv"
+pca_plot = "analysis/pca_plot.png"
+diff_plot = "analysis/signif_genes_and_isoforms.png"
+nofilter_files = expand(config["bam_dir"] + "{sample}.bam", sample=SAMPLES)
+filter_files = expand(config["bam_dir"] + "{sample}_{organism}_s.bam", sample=SAMPLES, organism=ORGANISMS)
+
+rule_all_input_list = [qc_rep, counts, diff_res, pca_plot, diff_plot]
+
+
+if config["filter_path"] == "yes":
+    rule_all_input_list.extend(filter_files)
+    include: "filter_rules.smk"
+else:
+    rule_all_input_list.extend(nofilter_files)
+    include: "no_filter_rules.smk"
 
 rule all:
     input:
-        expand(config["storage_dir"] + "aligned/{sample}_{organism}_s.bam", sample=SAMPLES, organism=ORGANISMS),
-        "qc/rnaseqc_report/multiqc_report.html",
-        config["quant_dir"] + "00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s.transcript_model_grouped_counts.tsv"
+        rule_all_input_list
 
 
 # does not work : Indexing parameters (-k, -w or -H) overridden by parameters used in the prebuilt index.
@@ -34,10 +58,10 @@ rule all:
 rule minimap_align:
     input:
         fa=config["ref_fa"],
-        fq=config["storage_dir"] + "{sample}.fastq"
+        fq=config["fastq_dir"] + "{sample}.fastq.gz"
     output:
-        bam="aligned_sep/{sample}.bam",
-        bai="aligned_sep/{sample}.bam.bai"
+        bam="aligned_tosep/{sample}.bam",
+        bai="aligned_tosep/{sample}.bam.bai"
     threads:
         10
     params:
@@ -48,52 +72,22 @@ rule minimap_align:
         "samtools index -@ {params.thread_index} {output.bam}"
 
 
-rule samtools_filter:
-    input:
-        bam="aligned_sep/{sample}.bam",
-        bed_filter="viral_chr.bed"
-    output:
-        human=temp("aligned_sep/{sample}_human.bam"),
-        pNLGV=temp("aligned_sep/{sample}_pNLGV.bam")
-    threads:
-        4
-    params:
-        thread_supp=3
-    shell:
-        "samtools view -hb -@ {params.thread_supp} -U {output.human} -L {input.bed_filter} {input.bam} > {output.pNLGV}"
-
-
-rule sort_index:
-    input:
-        "aligned_sep/{sample}_{organism}.bam"
-    output:
-        index=config["storage_dir"] + "aligned/{sample}_{organism}_s.bam.bai",
-        sortd=config["storage_dir"] + "aligned/{sample}_{organism}_s.bam"
-    threads:
-        4
-    params:
-        thread_index=3
-    shell:
-        "samtools sort -@ {threads} {input} -o {output.sortd} && "
-        "samtools index -@ {params.thread_index} {output.sortd}"
-
-
 rule rnaseqc:
     input:
         gtf=config["collaps_gtf"],
-        bam= config["storage_dir"] + "aligned/{sample}_human_s.bam"
+        bam=lambda wildcards : config["bam_dir"] + wildcards.sample + "_human_s.bam" if config["filter_path"] == "yes" else config["bam_dir"] + wildcards.sample + ".bam"
     output:
-        "qc/rnaseqc/{sample}_human.metrics.tsv"
+        "qc/rnaseqc/{sample}.metrics.tsv"
     params:
         dir="qc/rnaseqc",
-        sample_name=lambda wildcards: wildcards.sample + "_human"
+        sample_name=lambda wildcards: wildcards.sample
     shell:
         "rnaseqc -s {params.sample_name} {input.gtf} {input.bam} {params.dir}"
 
 
 rule rnaseqc_multiqc:
     input:
-        expand("qc/rnaseqc/{sample}_human.metrics.tsv", sample=SAMPLES)
+        expand("qc/rnaseqc/{sample}.metrics.tsv", sample=SAMPLES)
     output:
         "qc/rnaseqc_report/multiqc_report.html"
     params:
@@ -115,7 +109,7 @@ rule collapse_annotations:
 
 rule isoquant:
     input:
-        bam=expand(config["storage_dir"] + "aligned/{sample}_human_s.bam", sample=SAMPLES),
+        bam=expand(config["bam_dir"] + "{sample}_human_s.bam" if config["filter_path"] == "yes" else config["bam_dir"] + "{sample}.bam", sample=SAMPLES),
         bam_list="bam_list.txt",
         gtf=config["gtf"],
         fa=config["ref_fa"]
@@ -124,13 +118,25 @@ rule isoquant:
     params:
         output_dir=config["quant_dir"]
     output:
-        config["quant_dir"] + "00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s/00_20200818_NLGV_4GSTm_deltaTat_A2020_pass_barcode07_human_s.transcript_model_grouped_counts.tsv"
+        quants=config["quant_dir"] + "ALL_SAMPLES/ALL_SAMPLES.transcript_model_grouped_counts.tsv",
+        gtf=config["quant_dir"] + "ALL_SAMPLES/ALL_SAMPLES.transcript_models.gtf"
     shell:
         "isoquant.py --data_type ont --reference {input.fa} "
         "--genedb {input.gtf} --bam_list {input.bam_list} --force "
         "--output {params.output_dir} -t {threads} --complete_genedb "
-        "--read_group file_name"
+        "--prefix ALL_SAMPLES"
 
 
-
-# Maybe add cramino at some point, but would be redundant with ToulligQC?
+rule analysis_script:
+    input:
+        gtf=config["quant_dir"] + "ALL_SAMPLES/ALL_SAMPLES.transcript_models.gtf",
+        quants=config["quant_dir"] + "ALL_SAMPLES/ALL_SAMPLES.transcript_model_grouped_counts.tsv"
+    output:
+        "analysis/adjusted_gene_transcript_pval_005.csv",
+        "analysis/signif_genes_and_isoforms.png",
+        "analysis/pca_plot.png"
+    params:
+        design=config["samplesheet"],
+        output_dir="analysis"
+    script:
+        "analysis_script.R"
