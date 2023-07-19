@@ -2239,6 +2239,22 @@
       ],
       "Hash": "5f5a7629f956619d519205ec475fe647"
     },
+    "stageR": {
+      "Package": "stageR",
+      "Version": "1.20.0",
+      "Source": "Bioconductor",
+      "git_url": "https://git.bioconductor.org/packages/stageR",
+      "git_branch": "RELEASE_3_16",
+      "git_last_commit": "1bb57ec",
+      "git_last_commit_date": "2022-11-01",
+      "Requirements": [
+        "R",
+        "SummarizedExperiment",
+        "methods",
+        "stats"
+      ],
+      "Hash": "25a6c472c4e5b793f1b0888e5e5f461e"
+    },
     "statmod": {
       "Package": "statmod",
       "Version": "1.5.0",

@@ -4,21 +4,39 @@
 # Optionaly, this pipeline can align on a pathogen/host reference and filter out the pathogen-aligning reads.
 
 
-# references
+# References
+# Either a gtf for both pathogen and host, or the gtf for the organism filtered in
 gtf: "/home/etheimer/storage/Nanopore_data/tat_pas_tat_v2/gencode.v43.primary_assembly.annotation.gtf"
+# Is created by a rule : just give it a path and a name - the gtf is modified for the alignment qc metrics
 collaps_gtf: "/home/etheimer/storage/Nanopore_data/tat_pas_tat_v2/gencode.v43.primary_assembly.annotation_collapsed.gtf"
+# The reference for both host and pathogen concatenated
 ref_fa: "/home/etheimer/storage/Nanopore_data/tat_pas_tat_v2/GRCh38.primary_assembly_pNLGV.fa.gz"
 
-# samplesheet
-samplesheet: "../simple_design_matrix.tsv"
+# Samplesheet
+# The samplesheet needs to contain :
+# - a column named condition for the principal effect to be studied
+# - a column named sampleID containing the names of the samples; they need to match the name of the fastq files
+samplesheet: "design_matrix.tsv"
+
+# Comparison order
+# A file indicating comparisons (and variable) to use
+# format : variable,level_1,level_2
+comparison: "/home/etheimer/Documents/Nanopore_Minion/tat_pas_tat/long_read_pipeline/contrasts.csv"
 
 # fastq directory
+# The directory containing all and only the fastqs. Without . in their names
 fastq_dir: "/home/etheimer/storage/Nanopore_data/tat_pas_tat_v2/fastqs/"
 
-# output directories
+# Output directories
+# the output directory for the quantification files
 quant_dir: "quants_human/"
+# the output directory for the - final - bam files
 bam_dir: "/home/etheimer/storage/Nanopore_data/tat_pas_tat_v2/bams/"
 
 # Filter
+# whether to filter out parts of the reference genome (such as the pathogen genome)
 filter_path: "yes"
+# a bed file indicating the regions to filter out
+# example to filter out the pNLGV HIV genome from the bams (just this single line if in a single chromosome):
+# pNLGV_4GS_Tm	0	15489
 bed_file: "viral_chr.bed"

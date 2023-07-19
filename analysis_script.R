@@ -18,6 +18,7 @@ if (interactive()) {
       source = "function"
     )
   )
+  # si exécution manuelle modifier les paths et les faire correspondre à l'analyse actuelle
   snakemake <- Snakemake(
     input = list(
       quants = "./quants_human/ALL_SAMPLES/ALL_SAMPLES.transcript_model_grouped_counts.tsv",
@@ -25,7 +26,8 @@ if (interactive()) {
     ),
     output = list(),
     params = list(
-      design = "../simple_design_matrix.tsv",
+      design = "./design_matrix.tsv",
+      comparison = "./contrasts.csv",
       output_dir = "analysis"
     ),
     wildcards = list(),
@@ -56,6 +58,7 @@ library(ggrepel)
 library(stringr)
 library(aggregation)
 library(hexbin)
+library(crayon)
 
 library(GenomicFeatures)
 library(vsn)
@@ -87,9 +90,22 @@ rld_pca <- function(rld, config, ntop = 500) {
 # TODO find a way to integrate the conditions automatically
 plot_isoforms <- function(matrix_tx, txdf, design_matrix, genes, sig_iso = c()) {
   tmp_data <- matrix_tx %>%
-    left_join(txdf %>% dplyr::rename("isoform_id" = "TXNAME", "gene_id" = "GENEID"), by = "isoform_id") %>%
+    left_join(
+      txdf %>%
+      dplyr::rename(
+               "isoform_id" = "TXNAME",
+               "gene_id" = "GENEID"
+             ),
+      by = "isoform_id"
+    ) %>%
     dplyr::filter(gene_id %in% genes) %>%
-    mutate(transcript_level = ifelse(isoform_id %in% sig_iso, "significant", "not_significant"))
+    mutate(
+      transcript_level = ifelse(
+        isoform_id %in% sig_iso,
+        "significant",
+        "not_significant"
+      )
+    )
   diff_conditions <- unique(design_matrix$condition)
 
   for(cond in diff_conditions) {
@@ -101,6 +117,7 @@ plot_isoforms <- function(matrix_tx, txdf, design_matrix, genes, sig_iso = c()) 
   plot_data <- tmp_data %>%
     dplyr::select(all_of(diff_conditions), isoform_id, gene_id, transcript_level) %>%
     pivot_longer(!c(isoform_id, gene_id, transcript_level), names_to = "condition", values_to = "mean")
+
 
   plot_tx <- ggplot(plot_data, aes(x = isoform_id, y = mean, fill = condition, color = transcript_level)) +
     geom_bar(stat = "identity", position = "dodge", linewidth = 3) +
@@ -133,9 +150,11 @@ colnames(matrix_tx)[1] <- "isoform_id"
 
 
 # PCA ------------------------------
-exploratory_dds <- DESeqDataSetFromMatrix(round(matrix_tx %>% column_to_rownames("isoform_id") %>% as.matrix),
-                                          colData = design_matrix %>% column_to_rownames("sampleID"),
-                                          ~ condition)
+exploratory_dds <- DESeqDataSetFromMatrix(
+  round(matrix_tx %>% column_to_rownames("isoform_id") %>% as.matrix()),
+  colData = design_matrix %>% column_to_rownames("sampleID"),
+  ~condition
+)
 exploratory_dds <- estimateSizeFactors(exploratory_dds)
 rld <- rlog(exploratory_dds)
 pca_data <- rld_pca(rld, design_matrix)#, nrow(log_tr))
@@ -153,7 +172,21 @@ pca_plot <- ggplot(
   geom_point(aes(color = condition), size = 5) +
   geom_label_repel()
 
-ggsave(file.path(snakemake@params[["output_dir"]], "pca_plot.png"), plot = pca_plot)
+ggsave(
+  file.path(
+    snakemake@params[["output_dir"]],
+    "pca_plot.png"
+  ),
+  pca_plot
+)
+
+
+
+
+comparison_df <- read.table(
+  snakemake@params[["comparison"]],
+  sep = ",",
+  )
 
 # Filter with DRIMseq -------------------------------
 gtf <- snakemake@input[["gtf"]]
@@ -162,63 +195,121 @@ txdb <- makeTxDbFromGFF(gtf)
 invisible(saveDb(txdb, txdb_filename))
 txdf <- AnnotationDbi::select(txdb, keys(txdb, "GENEID"), "TXNAME", "GENEID")
 
-counts <- left_join(
-    matrix_tx %>% dplyr::rename("feature_id" = "isoform_id"),
+for (i in nrow(comparison_df)) {
+  cat(bold(paste(
+    "Studying",
+    comparison_df[i, 1],
+    ":",
+    comparison_df[i, 2],
+    "vs",
+    comparison_df[i, 3],
+    "\n"
+  )))
+
+  cur_samples <- design_matrix %>%
+    dplyr::filter(.data[[comparison_df[i, 1]]] %in% comparison_df[i, 2:3]) %>%
+    pull(sampleID)
+  matrix_tx_cur <- matrix_tx[, c("isoform_id", cur_samples)]
+  counts <- left_join(
+    matrix_tx_cur %>% dplyr::rename("feature_id" = "isoform_id"),
     txdf %>% dplyr::rename("feature_id" = "TXNAME"),
-    by = "feature_id") %>%
-  dplyr::rename("gene_id" = "GENEID") %>%
-  relocate(gene_id, .after = feature_id)
+    by = "feature_id"
+  ) %>%
+    dplyr::rename("gene_id" = "GENEID") %>%
+    relocate(gene_id, .after = feature_id)
 
-# TODO à paramétriser depuis le fichier config.yaml ?
-drim <- dmDSdata(counts = counts %>% as.data.frame(),
-                 samples = design_matrix %>% dplyr::rename("sample_id" = "sampleID") %>% as.data.frame())
-drim <- dmFilter(
-  drim,
-  min_samps_feature_expr = 3, min_feature_expr = 3,
-  min_samps_feature_prop = 3, min_feature_prop = 0.1,
-  min_samps_gene_expr = 6, min_gene_expr = 3
-)
+  # TODO à paramétriser depuis le fichier config.yaml ?
+  drim <- dmDSdata(
+    counts = counts %>% as.data.frame(),
+    samples = design_matrix %>%
+      dplyr::filter(sampleID %in% cur_samples) %>%
+      dplyr::rename("sample_id" = "sampleID") %>%
+      as.data.frame()
+  )
+  drim <- dmFilter(
+    drim,
+    min_samps_feature_expr = 3, min_feature_expr = 3,
+    min_samps_feature_prop = 3, min_feature_prop = 0.1,
+    min_samps_gene_expr = 6, min_gene_expr = 3
+  )
+
+  cur_full_model <- formula(paste0("~ sample + exon + ", comparison_df[i, 1], ":exon"))
+  cur_reduced_model <- formula("~ sample + exon")
 
 
-# Inférence DEXSeq -----------------------------------
+  # Inférence DEXSeq -----------------------------------
+  sample_data <- DRIMSeq::samples(drim)
+  count_data <- round(as.matrix(counts(drim)[, -c(1, 2)]))
+  dex <- DEXSeqDataSet(
+    countData = count_data,
+    sampleData = sample_data,
+    design = cur_full_model,
+    featureID = counts(drim)$feature_id,
+    groupID = counts(drim)$gene_id
+  )
+  dex <- DEXSeq::estimateSizeFactors(dex)
+  dex <- DEXSeq::estimateDispersions(dex)
+  dex <- DEXSeq::testForDEU(dex, reducedModel = cur_reduced_model)
+  dex_res <- DEXSeqResults(dex, independentFiltering = FALSE)
+  # pas corrigé pour test multiple il faut qu'il le soit il me semble
+  qval <- perGeneQValue(dex_res)
+  dex_res_g <- data.frame(gene = names(qval), qval)
 
-sample_data <- DRIMSeq::samples(drim)
-count_data <- round(as.matrix(counts(drim)[, -c(1, 2)]))
-dex <- DEXSeqDataSet(
-  countData = count_data,
-  sampleData = sample_data,
-  design = ~ sample + exon + condition:exon,
-  featureID = counts(drim)$feature_id,
-  groupID = counts(drim)$gene_id
-)
-dex <- DEXSeq::estimateSizeFactors(dex)
-dex <- DEXSeq::estimateDispersions(dex)
-dex <- DEXSeq::testForDEU(dex, reducedModel = ~ sample + exon)
-dex_res <- DEXSeqResults(dex, independentFiltering = FALSE)
-# pas corrigé pour test multiple il faut qu'il le soit il me semble
-qval <- perGeneQValue(dex_res)
-dex_res_g <- data.frame(gene = names(qval), qval)
+  # Descente niveau transcrit avec stageR ------------------
 
-# Descente niveau transcrit avec stageR ------------------
+  p_confirmation <- matrix(dex_res$pvalue, ncol = 1)
+  dimnames(p_confirmation) <- list(dex_res$featureID, "transcript")
+  tx2gene <- as.data.frame(dex_res[, c("featureID", "groupID")])
+  p_screen <- qval
 
-p_confirmation <- matrix(dex_res$pvalue, ncol = 1)
-dimnames(p_confirmation) <- list(dex_res$featureID, "transcript")
-tx2gene <- as.data.frame(dex_res[,c("featureID", "groupID")])
-p_screen <- qval
+  stager_obj <- stageRTx(
+    pScreen = p_screen,
+    pConfirmation = p_confirmation,
+    pScreenAdjusted = TRUE,
+    tx2gene = tx2gene
+  )
+  stager_obj <- stageWiseAdjustment(stager_obj, method = "dtu", alpha = 0.05)
+  dex_padj <- getAdjustedPValues(
+    stager_obj,
+    order = FALSE,
+    onlySignificantGenes = TRUE
+  )
+  top_genes <- dex_padj %>%
+    pull(geneID) %>%
+    unique()
+  sig_iso <- dex_padj %>%
+    filter(transcript < 0.05) %>%
+    pull(txID)
+  plot_iso <- plot_isoforms(
+    matrix_tx_cur,
+    txdf,
+    design_matrix %>%
+   filter(sampleID %in% cur_samples),
+    top_genes,
+    sig_iso
+  )
+  ggsave(
+    file.path(
+      snakemake@params[["output_dir"]],
+      paste0(comparison_df[i, 1], "_", comparison_df[i, 2], "-vs-", comparison_df[i, 3], "_", "signif_genes_and_isoforms.png")
+    ),
+    plot_iso,
+    dpi = 300
+  )
+  ggsave(
+    file.path(
+      snakemake@params[["output_dir"]],
+      paste0(comparison_df[i, 1], "_", comparison_df[i, 2], "-vs-", comparison_df[i, 3], "_", "signif_genes_and_isoforms.svg")
+    ),
+    plot_iso
+  )
 
-stager_obj <- stageRTx(
-  pScreen = p_screen,
-  pConfirmation = p_confirmation,
-  pScreenAdjusted = TRUE,
-  tx2gene = tx2gene
-)
-stager_obj <- stageWiseAdjustment(stager_obj, method = "dtu", alpha = 0.05)
-dex_padj <- getAdjustedPValues(stager_obj, order = FALSE, onlySignificantGenes = TRUE)
-top_genes <- dex_padj %>% pull(geneID) %>% unique
-sig_iso <- dex_padj %>% filter(transcript < 0.05) %>% pull(txID)
-plot_iso <- plot_isoforms(matrix_tx, txdf, design_matrix, top_genes, sig_iso)
-ggsave(file.path(snakemake@params[["output_dir"]], "signif_genes_and_isoforms.png"), plot_iso, dpi = 300)
-
-write_csv(dex_padj, file.path(snakemake@params[["output_dir"]], "adjusted_gene_transcript_pval_005.csv"))
-
+  write_csv(
+    dex_padj,
+    file.path(
+      snakemake@params[["output_dir"]],
+      paste0(comparison_df[i, 1], "_", comparison_df[i, 2], "-vs-", comparison_df[i, 3], "_", "adjusted_gene_transcript_pval_005.csv")
+    )
+  )
+}
 # Aucun transcrit n'est significatif 🥲

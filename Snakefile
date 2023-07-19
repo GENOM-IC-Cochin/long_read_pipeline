@@ -18,15 +18,18 @@ with open("bam_list.txt", "w") as fileout:
     for _, row in samplesheet.iterrows():
         fileout.write(f"{config['bam_dir']}{row['sampleID']}_human_s.bam:{row['sampleID']}\n")
 
+comparison = pd.read_csv(config["comparison"], header=None, index_col=False)
+list_comparisons = []
+for _, row in comparison.iterrows():
+    list_comparisons.append(f"{row[0]}_{row[1]}-vs-{row[2]}")
 
 qc_rep = "qc/rnaseqc_report/multiqc_report.html"
 counts = config["quant_dir"] + "ALL_SAMPLES/ALL_SAMPLES.transcript_model_grouped_counts.tsv"
-diff_res = "analysis/adjusted_gene_transcript_pval_005.csv"
 pca_plot = "analysis/pca_plot.png"
-diff_plot = "analysis/signif_genes_and_isoforms.png"
 nofilter_files = expand(config["bam_dir"] + "{sample}.bam", sample=SAMPLES)
 filter_files = expand(config["bam_dir"] + "{sample}_{organism}_s.bam", sample=SAMPLES, organism=ORGANISMS)
-
+diff_res = expand("analysis/{comp}_adjusted_gene_transcript_pval_005.csv", comp=list_comparisons),
+diff_plot = expand("analysis/{comp}_signif_genes_and_isoforms.png", comp=list_comparisons),
 rule_all_input_list = [qc_rep, counts, diff_res, pca_plot, diff_plot]
 
 
@@ -36,6 +39,10 @@ if config["filter_path"] == "yes":
 else:
     rule_all_input_list.extend(nofilter_files)
     include: "no_filter_rules.smk"
+
+
+
+# RULES ---------------------------------------
 
 rule all:
     input:
@@ -132,10 +139,11 @@ rule analysis_script:
         gtf=config["quant_dir"] + "ALL_SAMPLES/ALL_SAMPLES.transcript_models.gtf",
         quants=config["quant_dir"] + "ALL_SAMPLES/ALL_SAMPLES.transcript_model_grouped_counts.tsv"
     output:
-        "analysis/adjusted_gene_transcript_pval_005.csv",
-        "analysis/signif_genes_and_isoforms.png",
+        expand("analysis/{comp}_adjusted_gene_transcript_pval_005.csv", comp=list_comparisons),
+        expand("analysis/{comp}_signif_genes_and_isoforms.png", comp=list_comparisons),
         "analysis/pca_plot.png"
     params:
+        comparison=config["comparison"],
         design=config["samplesheet"],
         output_dir="analysis"
     script:
