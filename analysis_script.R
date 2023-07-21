@@ -28,7 +28,8 @@ if (interactive()) {
     params = list(
       design = "./design_matrix.tsv",
       comparison = "./contrasts.csv",
-      output_dir = "analysis"
+      output_dir = "analysis",
+      batch = "run"
     ),
     wildcards = list(),
     threads = 1,
@@ -141,10 +142,14 @@ plot_isoforms <- function(matrix_tx, txdf, design_matrix, genes, sig_iso = c()) 
 }
 
 
-design_matrix <- read_tsv(snakemake@params[["design"]])
+design_matrix <- read_tsv(snakemake@params[["design"]], col_types = list(.default = col_character()))
 matrix_tx <- read_tsv(snakemake@input[["quants"]])
+comparison_df <- read.table(snakemake@params[["comparison"]], sep = ",")
+
 if (!(all(design_matrix$sampleID == colnames(matrix_tx[, -1]))))
   stop("The sample names defined in the design matrix do not match the sample names in the quants file")
+if(!(unique(comparison_df[, 1]) %in% colnames(design_matrix)))
+  stop("The specified variable is not present in the design_matrix")
 
 colnames(matrix_tx)[1] <- "isoform_id"
 
@@ -183,11 +188,6 @@ ggsave(
 
 
 
-comparison_df <- read.table(
-  snakemake@params[["comparison"]],
-  sep = ",",
-  )
-
 # Filter with DRIMseq -------------------------------
 gtf <- snakemake@input[["gtf"]]
 txdb_filename <- "transcript_models.sqlite"
@@ -205,6 +205,10 @@ for (i in nrow(comparison_df)) {
     comparison_df[i, 3],
     "\n"
   )))
+  batch_list <- stringr::str_split_1(snakemake@params[["batch"]], ",")
+  if (comparison_df[i, 1] %in% batch_list) {
+    stop("One batch variable cannot also be the studied variable")
+  }
 
   cur_samples <- design_matrix %>%
     dplyr::filter(.data[[comparison_df[i, 1]]] %in% comparison_df[i, 2:3]) %>%
@@ -233,8 +237,21 @@ for (i in nrow(comparison_df)) {
     min_samps_gene_expr = 6, min_gene_expr = 3
   )
 
-  cur_full_model <- formula(paste0("~ sample + exon + ", comparison_df[i, 1], ":exon"))
-  cur_reduced_model <- formula("~ sample + exon")
+  if (batch_list != c("")) {
+    cur_full_model_wo_batch <- paste0("~ sample + exon + ", comparison_df[i, 1], ":exon")
+    batch_f <- paste0(batch_list, ":exon", collapse = " + ")
+    cur_full_model <- formula(paste0(cur_full_model_wo_batch, " + ", batch_f))
+
+    cur_reduced_model_wo_batch <- "~ sample + exon"
+    cur_reduced_model <- formula(paste0(cur_reduced_model_wo_batch, " + ", batch_f))
+  } else {
+    cur_full_model <- formula(paste0("~ sample + exon + ", comparison_df[i, 1], ":exon"))
+    cur_reduced_model <- formula("~ sample + exon")
+  }
+
+  cat(bold(paste("Full formula :", deparse1(cur_full_model), "\n")))
+  cat(bold(paste("Reduced formula :", deparse1(cur_reduced_model), "\n")))
+
 
 
   # Inférence DEXSeq -----------------------------------
@@ -251,7 +268,6 @@ for (i in nrow(comparison_df)) {
   dex <- DEXSeq::estimateDispersions(dex)
   dex <- DEXSeq::testForDEU(dex, reducedModel = cur_reduced_model)
   dex_res <- DEXSeqResults(dex, independentFiltering = FALSE)
-  # pas corrigé pour test multiple il faut qu'il le soit il me semble
   qval <- perGeneQValue(dex_res)
   dex_res_g <- data.frame(gene = names(qval), qval)
 
@@ -274,42 +290,66 @@ for (i in nrow(comparison_df)) {
     order = FALSE,
     onlySignificantGenes = TRUE
   )
-  top_genes <- dex_padj %>%
-    pull(geneID) %>%
-    unique()
-  sig_iso <- dex_padj %>%
-    filter(transcript < 0.05) %>%
-    pull(txID)
-  plot_iso <- plot_isoforms(
-    matrix_tx_cur,
-    txdf,
-    design_matrix %>%
-   filter(sampleID %in% cur_samples),
-    top_genes,
-    sig_iso
-  )
-  ggsave(
-    file.path(
-      snakemake@params[["output_dir"]],
-      paste0(comparison_df[i, 1], "_", comparison_df[i, 2], "-vs-", comparison_df[i, 3], "_", "signif_genes_and_isoforms.png")
-    ),
-    plot_iso,
-    dpi = 300
-  )
-  ggsave(
-    file.path(
-      snakemake@params[["output_dir"]],
-      paste0(comparison_df[i, 1], "_", comparison_df[i, 2], "-vs-", comparison_df[i, 3], "_", "signif_genes_and_isoforms.svg")
-    ),
-    plot_iso
-  )
 
-  write_csv(
-    dex_padj,
-    file.path(
-      snakemake@params[["output_dir"]],
-      paste0(comparison_df[i, 1], "_", comparison_df[i, 2], "-vs-", comparison_df[i, 3], "_", "adjusted_gene_transcript_pval_005.csv")
+  # Plots et sauvegarde
+  if (is.null(dex_padj)) {
+    cat(bold(red("No DTU genes were found\n")))
+    file.create(
+      file.path(
+        snakemake@params[["output_dir"]],
+        paste0(comparison_df[i, 1], "_", comparison_df[i, 2], "-vs-", comparison_df[i, 3], "_", "signif_genes_and_isoforms.png")
+      )
     )
-  )
+    file.create(
+      file.path(
+        snakemake@params[["output_dir"]],
+        paste0(comparison_df[i, 1], "_", comparison_df[i, 2], "-vs-", comparison_df[i, 3], "_", "signif_genes_and_isoforms.svg")
+      )
+    )
+    file.create(
+      file.path(
+        snakemake@params[["output_dir"]],
+        paste0(comparison_df[i, 1], "_", comparison_df[i, 2], "-vs-", comparison_df[i, 3], "_", "adjusted_gene_transcript_pval_005.csv")
+      )
+    )
+  } else {
+    top_genes <- dex_padj %>%
+      pull(geneID) %>%
+      unique()
+    sig_iso <- dex_padj %>%
+      filter(transcript < 0.05) %>%
+      pull(txID)
+    plot_iso <- plot_isoforms(
+      matrix_tx_cur,
+      txdf,
+      design_matrix %>%
+        filter(sampleID %in% cur_samples),
+      top_genes,
+      sig_iso
+    )
+    ggsave(
+      file.path(
+        snakemake@params[["output_dir"]],
+        paste0(comparison_df[i, 1], "_", comparison_df[i, 2], "-vs-", comparison_df[i, 3], "_", "signif_genes_and_isoforms.png")
+      ),
+      plot_iso,
+      dpi = 300
+    )
+    ggsave(
+      file.path(
+        snakemake@params[["output_dir"]],
+        paste0(comparison_df[i, 1], "_", comparison_df[i, 2], "-vs-", comparison_df[i, 3], "_", "signif_genes_and_isoforms.svg")
+      ),
+      plot_iso
+    )
+
+    write_csv(
+      dex_padj,
+      file.path(
+        snakemake@params[["output_dir"]],
+        paste0(comparison_df[i, 1], "_", comparison_df[i, 2], "-vs-", comparison_df[i, 3], "_", "adjusted_gene_transcript_pval_005.csv")
+      )
+    )
+  }
 }
 # Aucun transcrit n'est significatif 🥲

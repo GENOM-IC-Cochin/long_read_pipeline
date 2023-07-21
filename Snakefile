@@ -1,5 +1,6 @@
 configfile: "config.yaml"
 
+# PRE-TREATMENT -----------------------------
 import os
 import sys
 
@@ -22,6 +23,12 @@ comparison = pd.read_csv(config["comparison"], header=None, index_col=False)
 list_comparisons = []
 for _, row in comparison.iterrows():
     list_comparisons.append(f"{row[0]}_{row[1]}-vs-{row[2]}")
+
+list_columns = list(samplesheet.drop(columns="sampleID").columns)
+batch = config["batch"].split(",") if config["batch"] != "" else []
+if not set(batch).issubset(list_columns):
+    sys.exit(f"Mismatch between batch variables {config['batch']} and samplesheets columns {list_columns}")
+
 
 qc_rep = "qc/rnaseqc_report/multiqc_report.html"
 counts = config["quant_dir"] + "ALL_SAMPLES/ALL_SAMPLES.transcript_model_grouped_counts.tsv"
@@ -145,6 +152,7 @@ rule analysis_script:
     params:
         comparison=config["comparison"],
         design=config["samplesheet"],
-        output_dir="analysis"
+        output_dir="analysis",
+        batch=config["batch"]
     script:
         "analysis_script.R"
