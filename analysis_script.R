@@ -29,7 +29,12 @@ if (interactive()) {
       design = "./design_matrix.tsv",
       comparison = "./contrasts.csv",
       output_dir = "analysis",
-      batch = "run"
+      batch = "run",
+      n_small = "3",
+      min_feature_expr = "3",
+      min_feature_prop = "0.1",
+      n_big = "6",
+      min_gene_expr = "3"
     ),
     wildcards = list(),
     threads = 1,
@@ -232,9 +237,9 @@ for (i in nrow(comparison_df)) {
   )
   drim <- dmFilter(
     drim,
-    min_samps_feature_expr = 3, min_feature_expr = 3,
-    min_samps_feature_prop = 3, min_feature_prop = 0.1,
-    min_samps_gene_expr = 6, min_gene_expr = 3
+    min_samps_feature_expr = as.integer(snakemake@params["n_small"]), min_feature_expr = as.integer(snakemake@params["min_feature_expr"]),
+    min_samps_feature_prop = as.integer(snakemake@params["n_small"]), min_feature_prop = as.numeric(snakemake@params["min_feature_prop"]),
+    min_samps_gene_expr = as.integer(snakemake@params["n_big"]), min_gene_expr = as.integer(snakemake@params["min_gene_expr"])
   )
 
   if (batch_list != c("")) {

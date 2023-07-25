@@ -153,6 +153,11 @@ rule analysis_script:
         comparison=config["comparison"],
         design=config["samplesheet"],
         output_dir="analysis",
-        batch=config["batch"]
+        batch=config["batch"],
+        n_small=config["n_small"],
+        min_feature_expr=config["min_feature_expr"],
+        min_feature_prop=config["min_feature_prop"],
+        n_big=config["n_big"],
+        min_gene_expr=config["min_gene_expr"]
     script:
         "analysis_script.R"

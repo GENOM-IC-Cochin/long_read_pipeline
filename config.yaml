@@ -31,7 +31,7 @@ samplesheet: "design_matrix.tsv"
 ## 4        1         B
 ## 5        2         C
 ## 6        2         C
-batch: "run"
+batch: ""
 
 # Comparison order
 # A file indicating comparisons (and variable) to use
@@ -48,10 +48,27 @@ quant_dir: "quants_human/"
 # the output directory for the - final - bam files
 bam_dir: "/home/etheimer/storage/Nanopore_data/tat_pas_tat_v2/bams/"
 
-# Filter
+# Filter bam
 # whether to filter out parts of the reference genome (such as the pathogen genome)
 filter_path: "yes"
 # a bed file indicating the regions to filter out
 # example to filter out the pNLGV HIV genome from the bams (just this single line if in a single chromosome):
 # pNLGV_4GS_Tm	0	15489
 bed_file: "viral_chr.bed"
+
+# Filter low expression transcript
+# Using the DRIMseq filters
+# Benchmark default : adapted to short read
+
+# Sample size of the smallest group
+n_small: "3"
+# Minimum isoform expression in n_small samples
+min_feature_expr: "3"
+# Minimum relative proportion in n_small samples
+# "For a concrete example, if a transcript goes from a proportion of 0% in the control group to a proportion of 9% in the treatment group, this would be removed by the above 10% filter"
+# same idea for the min_feature_expr
+min_feature_prop: "0.1"
+# number of samples for the below filter, by default the total number of sample
+n_big: "6"
+# Minimum gene expression in n_big samples
+min_gene_expr: "3"
