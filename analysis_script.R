@@ -53,28 +53,26 @@ if (interactive()) {
   snakemake@source(".Rprofile")
 }
 
+suppressPackageStartupMessages({
+  library(readr)
+  library(dplyr)
+  library(tidyr)
+  library(tibble)
+  library(ggplot2)
+  library(ggrepel)
+  library(stringr)
+  library(hexbin)
+  library(crayon)
 
-library(readr)
-library(dplyr)
-library(tidyr)
-library(purrr)
-library(tibble)
-library(ggplot2)
-library(ggrepel)
-library(stringr)
-library(aggregation)
-library(hexbin)
-library(crayon)
-
-library(GenomicFeatures)
-library(vsn)
-library(DESeq2)
-library(DEXSeq)
-library(DRIMSeq)
-library(biomaRt)
-library(IsoformSwitchAnalyzeR)
-library(BSgenome.Hsapiens.UCSC.hg38)
-library(stageR)
+  library(GenomicFeatures)
+  library(vsn)
+  library(DESeq2)
+  library(DEXSeq)
+  library(DRIMSeq)
+  library(biomaRt)
+  library(BSgenome.Hsapiens.UCSC.hg38)
+  library(stageR)
+})
 
 rld_pca <- function(rld, config, ntop = 500) {
   rv <- matrixStats::rowVars(assay(rld))
@@ -134,13 +132,19 @@ plot_isoforms <- function(matrix_tx, txdf, design_matrix, genes, condition) {
       theme(axis.text.x = element_blank()) +
       facet_wrap(~gene_id, scales = "free")
   }
-
   plot_tx
 }
 
 
-design_matrix <- read_tsv(snakemake@params[["design"]], col_types = list(.default = col_character()))
-matrix_tx <- read_tsv(snakemake@input[["quants"]])
+design_matrix <- read_tsv(
+  snakemake@params[["design"]],
+  col_types = list(
+    sampleID = col_character(),
+    .default = col_factor()
+  ),
+  show_col_types = FALSE
+)
+matrix_tx <- read_tsv(snakemake@input[["quants"]], show_col_types = FALSE)
 comparison_df <- read.table(snakemake@params[["comparison"]], sep = ",")
 
 if (!(all(design_matrix$sampleID == colnames(matrix_tx[, -1]))))
@@ -174,14 +178,20 @@ pca_plot <- ggplot(
   geom_point(aes(color = .data[[comparison_df[1, 1]]]), size = 5) +
   geom_label_repel()
 
-ggsave(
+suppressMessages(ggsave(
   file.path(
     snakemake@params[["output_dir"]],
     "pca_plot.png"
   ),
+  pca_plot,
+))
+suppressMessages(ggsave(
+  file.path(
+    snakemake@params[["output_dir"]],
+    "pca_plot.svg"
+  ),
   pca_plot
-)
-
+))
 
 
 
@@ -320,21 +330,21 @@ for (i in nrow(comparison_df)) {
       top_genes,
       comparison_df[i, 1]
     )
-    ggsave(
+    suppressMessages(ggsave(
       file.path(
         snakemake@params[["output_dir"]],
         paste0(comparison_df[i, 1], "_", comparison_df[i, 2], "-vs-", comparison_df[i, 3], "_", "signif_genes_and_isoforms.png")
       ),
       plot_iso,
       dpi = 300
-    )
-    ggsave(
+    ))
+    suppressMessages(ggsave(
       file.path(
         snakemake@params[["output_dir"]],
         paste0(comparison_df[i, 1], "_", comparison_df[i, 2], "-vs-", comparison_df[i, 3], "_", "signif_genes_and_isoforms.svg")
       ),
       plot_iso
-    )
+    ))
 
     write_csv(
       dex_padj,
