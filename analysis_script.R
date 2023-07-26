@@ -29,7 +29,7 @@ if (interactive()) {
       design = "./design_matrix.tsv",
       comparison = "./contrasts.csv",
       output_dir = "analysis",
-      batch = "run",
+      batch = "",
       n_small = "3",
       min_feature_expr = "3",
       min_feature_prop = "0.1",
@@ -94,7 +94,7 @@ rld_pca <- function(rld, config, ntop = 500) {
 }
 
 # TODO find a way to integrate the conditions automatically
-plot_isoforms <- function(matrix_tx, txdf, design_matrix, genes, sig_iso = c()) {
+plot_isoforms <- function(matrix_tx, txdf, design_matrix, genes, condition) {
   tmp_data <- matrix_tx %>%
     left_join(
       txdf %>%
@@ -104,30 +104,22 @@ plot_isoforms <- function(matrix_tx, txdf, design_matrix, genes, sig_iso = c()) 
              ),
       by = "isoform_id"
     ) %>%
-    dplyr::filter(gene_id %in% genes) %>%
-    mutate(
-      transcript_level = ifelse(
-        isoform_id %in% sig_iso,
-        "significant",
-        "not_significant"
-      )
-    )
-  diff_conditions <- unique(design_matrix$condition)
+    dplyr::filter(gene_id %in% genes)
+  diff_conditions <- unique(design_matrix[[condition]])
 
   for(cond in diff_conditions) {
     samples_to_mean <- design_matrix %>%
-                    dplyr::filter(condition == cond) %>%
+                    dplyr::filter(.data[[condition]] == cond) %>%
                     pull(sampleID)
     tmp_data[[cond]] <- rowMeans(tmp_data[samples_to_mean])
   }
   plot_data <- tmp_data %>%
-    dplyr::select(all_of(diff_conditions), isoform_id, gene_id, transcript_level) %>%
-    pivot_longer(!c(isoform_id, gene_id, transcript_level), names_to = "condition", values_to = "mean")
+    dplyr::select(all_of(diff_conditions), isoform_id, gene_id) %>%
+    pivot_longer(!c(isoform_id, gene_id), names_to = condition, values_to = "mean")
 
 
-  plot_tx <- ggplot(plot_data, aes(x = isoform_id, y = mean, fill = condition, color = transcript_level)) +
-    geom_bar(stat = "identity", position = "dodge", linewidth = 3) +
-    scale_color_manual(values = c("significant" = "black", "not_significant" = "white"))
+  plot_tx <- ggplot(plot_data, aes(x = isoform_id, y = mean, fill = .data[[condition]])) +
+    geom_bar(stat = "identity", position = "dodge", linewidth = 3)
   if(length(genes) == 1) {
     plot_tx <- plot_tx +
       scale_x_discrete(guide = guide_axis(n.dodge = 2)) +
@@ -163,8 +155,8 @@ colnames(matrix_tx)[1] <- "isoform_id"
 exploratory_dds <- DESeqDataSetFromMatrix(
   round(matrix_tx %>% column_to_rownames("isoform_id") %>% as.matrix()),
   colData = design_matrix %>% column_to_rownames("sampleID"),
-  ~condition
-)
+  design = ~ 1
+  )
 exploratory_dds <- estimateSizeFactors(exploratory_dds)
 rld <- rlog(exploratory_dds)
 pca_data <- rld_pca(rld, design_matrix)#, nrow(log_tr))
@@ -179,7 +171,7 @@ pca_plot <- ggplot(
   ylab(paste0("PC2: ", round(pca_data$variance[2], 1), "% variance")) +
   xlab(paste0("PC1: ", round(pca_data$variance[1], 1), "% variance")) +
   coord_fixed() +
-  geom_point(aes(color = condition), size = 5) +
+  geom_point(aes(color = .data[[comparison_df[1, 1]]]), size = 5) +
   geom_label_repel()
 
 ggsave(
@@ -227,7 +219,6 @@ for (i in nrow(comparison_df)) {
     dplyr::rename("gene_id" = "GENEID") %>%
     relocate(gene_id, .after = feature_id)
 
-  # TODO à paramétriser depuis le fichier config.yaml ?
   drim <- dmDSdata(
     counts = counts %>% as.data.frame(),
     samples = design_matrix %>%
@@ -321,16 +312,13 @@ for (i in nrow(comparison_df)) {
     top_genes <- dex_padj %>%
       pull(geneID) %>%
       unique()
-    sig_iso <- dex_padj %>%
-      filter(transcript < 0.05) %>%
-      pull(txID)
     plot_iso <- plot_isoforms(
       matrix_tx_cur,
       txdf,
       design_matrix %>%
         filter(sampleID %in% cur_samples),
       top_genes,
-      sig_iso
+      comparison_df[i, 1]
     )
     ggsave(
       file.path(

@@ -58,7 +58,9 @@ bed_file: "viral_chr.bed"
 
 # Filter low expression transcript
 # Using the DRIMseq filters
-# Benchmark default : adapted to short read
+# Benchmark default, adapted to short read :
+# min_feature_expr = 10, min_feature_prop = 0.1, min_gene_expr = 10
+# with n_big being the total number of sample
 
 # Sample size of the smallest group
 n_small: "3"
