@@ -36,9 +36,6 @@ library(vsn)
 library(DESeq2)
 library(DEXSeq)
 library(DRIMSeq)
-library(biomaRt)
-library(IsoformSwitchAnalyzeR)
-library(BSgenome.Hsapiens.UCSC.hg38)
 
 ```
 ```{css, echo=FALSE}

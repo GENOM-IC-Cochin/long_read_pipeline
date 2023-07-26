@@ -51,6 +51,7 @@ if (interactive()) {
   )
 } else {
   snakemake@source(".Rprofile")
+  renv::restore()
 }
 
 suppressPackageStartupMessages({
@@ -63,16 +64,16 @@ suppressPackageStartupMessages({
   library(stringr)
   library(hexbin)
   library(crayon)
+  library(svglite)
 
   library(GenomicFeatures)
   library(vsn)
   library(DESeq2)
   library(DEXSeq)
   library(DRIMSeq)
-  library(biomaRt)
-  library(BSgenome.Hsapiens.UCSC.hg38)
   library(stageR)
 })
+
 
 rld_pca <- function(rld, config, ntop = 500) {
   rv <- matrixStats::rowVars(assay(rld))
@@ -91,7 +92,7 @@ rld_pca <- function(rld, config, ntop = 500) {
   list("data" = PCAdata, "variance" = variance)
 }
 
-# TODO find a way to integrate the conditions automatically
+
 plot_isoforms <- function(matrix_tx, txdf, design_matrix, genes, condition) {
   tmp_data <- matrix_tx %>%
     left_join(
@@ -195,7 +196,7 @@ suppressMessages(ggsave(
 
 
 
-# Filter with DRIMseq -------------------------------
+# Load annotation file
 gtf <- snakemake@input[["gtf"]]
 txdb_filename <- "transcript_models.sqlite"
 txdb <- makeTxDbFromGFF(gtf)
@@ -217,6 +218,7 @@ for (i in nrow(comparison_df)) {
     stop("One batch variable cannot also be the studied variable")
   }
 
+# Filter with DRIMseq -------------------------------
   cur_samples <- design_matrix %>%
     dplyr::filter(.data[[comparison_df[i, 1]]] %in% comparison_df[i, 2:3]) %>%
     pull(sampleID)
