@@ -164,36 +164,7 @@ exploratory_dds <- DESeqDataSetFromMatrix(
   )
 exploratory_dds <- estimateSizeFactors(exploratory_dds)
 rld <- rlog(exploratory_dds)
-pca_data <- rld_pca(rld, design_matrix)#, nrow(log_tr))
-pca_plot <- ggplot(
-  pca_data$data,
-  aes(
-    x = PC1,
-    y = PC2,
-    label = rownames(pca_data$data)
-  )
-) +
-  ylab(paste0("PC2: ", round(pca_data$variance[2], 1), "% variance")) +
-  xlab(paste0("PC1: ", round(pca_data$variance[1], 1), "% variance")) +
-  coord_fixed() +
-  geom_point(aes(color = .data[[comparison_df[1, 1]]]), size = 5) +
-  geom_label_repel()
-
-suppressMessages(ggsave(
-  file.path(
-    snakemake@params[["output_dir"]],
-    "pca_plot.png"
-  ),
-  pca_plot,
-))
-suppressMessages(ggsave(
-  file.path(
-    snakemake@params[["output_dir"]],
-    "pca_plot.svg"
-  ),
-  pca_plot
-))
-
+pca_data <- rld_pca(rld, design_matrix)
 
 
 # Load annotation file
@@ -218,7 +189,38 @@ for (i in nrow(comparison_df)) {
     stop("One batch variable cannot also be the studied variable")
   }
 
-# Filter with DRIMseq -------------------------------
+  # PCA plot -------------------------------------------------------------------
+  pca_plot <- ggplot(
+    pca_data$data,
+    aes(
+      x = PC1,
+      y = PC2,
+      label = rownames(pca_data$data)
+    )
+  ) +
+    ylab(paste0("PC2: ", round(pca_data$variance[2], 1), "% variance")) +
+    xlab(paste0("PC1: ", round(pca_data$variance[1], 1), "% variance")) +
+    coord_fixed() +
+    geom_point(aes(color = .data[[comparison_df[i, 1]]]), size = 5) +
+    geom_label_repel()
+
+  suppressMessages(ggsave(
+    file.path(
+      snakemake@params[["output_dir"]],
+      paste0(comparison_df[i, 1], "_pca_plot.png")
+    ),
+    pca_plot,
+    ))
+  suppressMessages(ggsave(
+    file.path(
+      snakemake@params[["output_dir"]],
+      paste0(comparison_df[i, 1], "_pca_plot.svg")
+    ),
+    pca_plot
+  ))
+
+
+  # Filter with DRIMseq --------------------------------------------------------
   cur_samples <- design_matrix %>%
     dplyr::filter(.data[[comparison_df[i, 1]]] %in% comparison_df[i, 2:3]) %>%
     pull(sampleID)
