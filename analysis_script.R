@@ -18,7 +18,7 @@ if (interactive()) {
       source = "function"
     )
   )
-  # si exécution manuelle modifier les paths et les faire correspondre à l'analyse actuelle
+  # if manual execution, the paths and parameters need to be adapted
   snakemake <- Snakemake(
     input = list(
       quants = "./quants_human/ALL_SAMPLES/ALL_SAMPLES.transcript_model_grouped_counts.tsv",
@@ -76,6 +76,8 @@ suppressPackageStartupMessages({
 
 
 rld_pca <- function(rld, config, ntop = 500) {
+  # from the regularized count matrix, computes the PCA on the ntop most variable genes.
+
   rv <- matrixStats::rowVars(assay(rld))
   selected_genes <- order(rv, decreasing = TRUE)[seq_len(min(ntop, length(rv)))]
   mat <- t(assay(rld)[selected_genes, ])
@@ -84,7 +86,7 @@ rld_pca <- function(rld, config, ntop = 500) {
   variance <- eig * 100 / sum(eig)
 
   PCAdata <- as.data.frame(pc$x)
-# Join with condition, on name, to be sure of matches between condition and sample
+# Join with design matrix, on name, to be sure of matches between condition and sample
   PCAdata <- PCAdata %>%
     tibble::rownames_to_column(var = "sampleID") %>%
     inner_join(config, by = "sampleID") %>%
@@ -94,6 +96,8 @@ rld_pca <- function(rld, config, ntop = 500) {
 
 
 plot_isoforms <- function(matrix_tx, txdf, design_matrix, genes, condition) {
+  # Plots the isoforms gene by gene, on a single plot with genes as facets
+
   tmp_data <- matrix_tx %>%
     left_join(
       txdf %>%
@@ -156,7 +160,7 @@ if(!(unique(comparison_df[, 1]) %in% colnames(design_matrix)))
 colnames(matrix_tx)[1] <- "isoform_id"
 
 
-# PCA ------------------------------
+# PCA --------------------------------------------------------------------------
 exploratory_dds <- DESeqDataSetFromMatrix(
   round(matrix_tx %>% column_to_rownames("isoform_id") %>% as.matrix()),
   colData = design_matrix %>% column_to_rownames("sampleID"),
@@ -167,13 +171,14 @@ rld <- rlog(exploratory_dds)
 pca_data <- rld_pca(rld, design_matrix)
 
 
-# Load annotation file
+# Load annotation file ---------------------------------------------------------
 gtf <- snakemake@input[["gtf"]]
 txdb_filename <- "transcript_models.sqlite"
 txdb <- makeTxDbFromGFF(gtf)
 invisible(saveDb(txdb, txdb_filename))
 txdf <- AnnotationDbi::select(txdb, keys(txdb, "GENEID"), "TXNAME", "GENEID")
 
+# Loop on contrast file rows ---------------------------------------------------
 for (i in nrow(comparison_df)) {
   cat(bold(paste(
     "Studying",
@@ -247,6 +252,7 @@ for (i in nrow(comparison_df)) {
     min_samps_gene_expr = as.integer(snakemake@params["n_big"]), min_gene_expr = as.integer(snakemake@params["min_gene_expr"])
   )
 
+  # Formula creation -----------------------------------------------------------
   if (batch_list != c("")) {
     cur_full_model_wo_batch <- paste0("~ sample + exon + ", comparison_df[i, 1], ":exon")
     batch_f <- paste0(batch_list, ":exon", collapse = " + ")
@@ -258,13 +264,10 @@ for (i in nrow(comparison_df)) {
     cur_full_model <- formula(paste0("~ sample + exon + ", comparison_df[i, 1], ":exon"))
     cur_reduced_model <- formula("~ sample + exon")
   }
-
   cat(bold(paste("Full formula :", deparse1(cur_full_model), "\n")))
   cat(bold(paste("Reduced formula :", deparse1(cur_reduced_model), "\n")))
 
-
-
-  # Inférence DEXSeq -----------------------------------
+  # DEXSeq inference -----------------------------------------------------------
   sample_data <- DRIMSeq::samples(drim)
   count_data <- round(as.matrix(counts(drim)[, -c(1, 2)]))
   dex <- DEXSeqDataSet(
@@ -281,8 +284,7 @@ for (i in nrow(comparison_df)) {
   qval <- perGeneQValue(dex_res)
   dex_res_g <- data.frame(gene = names(qval), qval)
 
-  # Descente niveau transcrit avec stageR ------------------
-
+  # Down to transcript level with stageR ---------------------------------------
   p_confirmation <- matrix(dex_res$pvalue, ncol = 1)
   dimnames(p_confirmation) <- list(dex_res$featureID, "transcript")
   tx2gene <- as.data.frame(dex_res[, c("featureID", "groupID")])
@@ -301,9 +303,10 @@ for (i in nrow(comparison_df)) {
     onlySignificantGenes = TRUE
   )
 
-  # Plots et sauvegarde
+  # Plots and files ------------------------------------------------------------
   if (is.null(dex_padj)) {
     cat(bold(red("No DTU genes were found\n")))
+    # need to create the (empty) files nonetheless for the snakemake pipeline not to crash
     file.create(
       file.path(
         snakemake@params[["output_dir"]],
@@ -359,4 +362,3 @@ for (i in nrow(comparison_df)) {
     )
   }
 }
-# Aucun transcrit n'est significatif 🥲
