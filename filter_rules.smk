@@ -1,16 +1,16 @@
 rule samtools_filter:
     input:
         bam="aligned_tosep/{sample}.bam",
-        bed_filter="viral_chr.bed"
+        bed_filter=config["bed_file"]
     output:
-        human=temp("aligned_sep/{sample}_human.bam"),
-        pNLGV=temp("aligned_sep/{sample}_pNLGV.bam")
+        org1=temp(f'aligned_sep/{{sample}}_{ORGANISMS[0]}.bam'),
+        org2=temp(f'aligned_sep/{{sample}}_{ORGANISMS[1]}.bam')
     threads:
         4
     params:
         thread_supp=3
     shell:
-        "samtools view -hb -@ {params.thread_supp} -U {output.human} -L {input.bed_filter} {input.bam} > {output.pNLGV}"
+        "samtools view -hb -@ {params.thread_supp} -U {output.org1} -L {input.bed_filter} {input.bam} > {output.org2}"
 
 
 rule sort_index:

@@ -7,7 +7,7 @@ import sys
 import pandas as pd
 
 SAMPLES = [fastq_name.split(".")[0] for fastq_name in os.listdir(config["fastq_dir"]) if "fastq" in fastq_name or "fq" in fastq_name]
-ORGANISMS = ["pNLGV", "human"]
+ORGANISMS = config["organisms"].split(",")
 
 samplesheet = pd.read_csv(config["samplesheet"], sep = "\t")
 
@@ -40,7 +40,7 @@ diff_plot = expand("analysis/{comp}_signif_genes_and_isoforms.png", comp=list_co
 rule_all_input_list = [qc_rep, counts, diff_res, pca_plot, diff_plot]
 
 
-if config["filter_path"] == "yes":
+if config["filter"] == "yes":
     rule_all_input_list.extend(filter_files)
     include: "filter_rules.smk"
 else:
@@ -89,7 +89,7 @@ rule minimap_align:
 rule rnaseqc:
     input:
         gtf=config["collaps_gtf"],
-        bam=lambda wildcards : config["bam_dir"] + wildcards.sample + "_human_s.bam" if config["filter_path"] == "yes" else config["bam_dir"] + wildcards.sample + ".bam"
+        bam=lambda wildcards : config["bam_dir"] + wildcards.sample + "_human_s.bam" if config["filter"] == "yes" else config["bam_dir"] + wildcards.sample + ".bam"
     output:
         "qc/rnaseqc/{sample}.metrics.tsv"
     params:
@@ -123,7 +123,7 @@ rule collapse_annotations:
 
 rule isoquant:
     input:
-        bam=expand(config["bam_dir"] + "{sample}_human_s.bam" if config["filter_path"] == "yes" else config["bam_dir"] + "{sample}.bam", sample=SAMPLES),
+        bam=expand(config["bam_dir"] + "{sample}_human_s.bam" if config["filter"] == "yes" else config["bam_dir"] + "{sample}.bam", sample=SAMPLES),
         bam_list="bam_list.txt",
         gtf=config["gtf"],
         fa=config["ref_fa"]

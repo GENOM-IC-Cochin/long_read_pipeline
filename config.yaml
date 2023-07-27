@@ -48,11 +48,17 @@ quant_dir: "quants_human/"
 # the output directory for the - final - bam files
 bam_dir: "/home/etheimer/storage/Nanopore_data/tat_pas_tat_v2/bams/"
 
+# Organism
+# If used in a host/pathogen context, provide names for your organisms.
+# The second name is the one filtered out
+# (but this parameter only gives names, it is the bed file that defines what is filtered)
+organisms: "human,pNLGV"
+
 # Filter bam
 # whether to filter out parts of the reference genome (such as the pathogen genome)
-filter_path: "yes"
+filter: "yes"
 # a bed file indicating the regions to filter out
-# example to filter out the pNLGV HIV genome from the bams (just this single line if in a single chromosome):
+# example : to filter out the pNLGV HIV genome from the bams (just this single line if in a single chromosome):
 # pNLGV_4GS_Tm	0	15489
 bed_file: "viral_chr.bed"
 
