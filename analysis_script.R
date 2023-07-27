@@ -106,11 +106,11 @@ plot_isoforms <- function(matrix_tx, txdf, design_matrix, genes, condition) {
     dplyr::filter(gene_id %in% genes)
   diff_conditions <- unique(design_matrix[[condition]])
 
-  for(cond in diff_conditions) {
+  for(cur_cond in diff_conditions) {
     samples_to_mean <- design_matrix %>%
-                    dplyr::filter(.data[[condition]] == cond) %>%
+                    dplyr::filter(.data[[condition]] == cur_cond) %>%
                     pull(sampleID)
-    tmp_data[[cond]] <- rowMeans(tmp_data[samples_to_mean])
+    tmp_data[[cur_cond]] <- rowMeans(tmp_data[samples_to_mean])
   }
   plot_data <- tmp_data %>%
     dplyr::select(all_of(diff_conditions), isoform_id, gene_id) %>%
