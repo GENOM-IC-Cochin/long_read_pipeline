@@ -17,7 +17,7 @@ if not set(samplesheet["sampleID"].to_list()) == set(SAMPLES):
 
 with open("bam_list.txt", "w") as fileout:
     for _, row in samplesheet.iterrows():
-        fileout.write(f"{config['bam_dir']}{row['sampleID']}_human_s.bam:{row['sampleID']}\n")
+        fileout.write(f"{config['bam_dir']}{row['sampleID']}_{ORGANISMS[0]}_s.bam:{row['sampleID']}\n")
 
 comparison = pd.read_csv(config["comparison"], header=None, index_col=False)
 list_comparisons = []
@@ -89,7 +89,7 @@ rule minimap_align:
 rule rnaseqc:
     input:
         gtf=config["collaps_gtf"],
-        bam=lambda wildcards : config["bam_dir"] + wildcards.sample + "_human_s.bam" if config["filter"] == "yes" else config["bam_dir"] + wildcards.sample + ".bam"
+        bam=lambda wildcards : f"{config['bam_dir']}{wildcards.sample }_{ORGANISMS[0]}_s.bam" if config["filter"] == "yes" else f"{config['bam_dir']}{wildcards.sample}.bam"
     output:
         "qc/rnaseqc/{sample}.metrics.tsv"
     params:
@@ -123,7 +123,7 @@ rule collapse_annotations:
 
 rule isoquant:
     input:
-        bam=expand(config["bam_dir"] + "{sample}_human_s.bam" if config["filter"] == "yes" else config["bam_dir"] + "{sample}.bam", sample=SAMPLES),
+        bam=expand(f"{config['bam_dir']}{{sample}}_{ORGANISMS[0]}_s.bam" if config["filter"] == "yes" else f"{config['bam_dir']}{{sample}}.bam", sample=SAMPLES),
         bam_list="bam_list.txt",
         gtf=config["gtf"],
         fa=config["ref_fa"]
