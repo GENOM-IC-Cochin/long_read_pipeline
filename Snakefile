@@ -32,7 +32,7 @@ if not set(batch).issubset(list_columns):
 
 qc_rep = "qc/rnaseqc_report/multiqc_report.html"
 counts = config["quant_dir"] + "ALL_SAMPLES/ALL_SAMPLES.transcript_model_grouped_counts.tsv"
-pca_plot = "analysis/pca_plot.png"
+pca_plot = expand("analysis/{comp}_pca_plot.png", comp=list_comparisons)
 nofilter_files = expand(config["bam_dir"] + "{sample}.bam", sample=SAMPLES)
 filter_files = expand(config["bam_dir"] + "{sample}_{organism}_s.bam", sample=SAMPLES, organism=ORGANISMS)
 diff_res = expand("analysis/{comp}_adjusted_gene_transcript_pval_005.csv", comp=list_comparisons),
@@ -148,7 +148,7 @@ rule analysis_script:
     output:
         expand("analysis/{comp}_adjusted_gene_transcript_pval_005.csv", comp=list_comparisons),
         expand("analysis/{comp}_signif_genes_and_isoforms.png", comp=list_comparisons),
-        "analysis/pca_plot.png"
+        expand("analysis/{comp}_pca_plot.png", comp=list_comparisons)
     params:
         comparison=config["comparison"],
         design=config["samplesheet"],

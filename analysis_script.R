@@ -212,14 +212,14 @@ for (i in nrow(comparison_df)) {
   suppressMessages(ggsave(
     file.path(
       snakemake@params[["output_dir"]],
-      paste0(comparison_df[i, 1], "_pca_plot.png")
+      paste0(comparison_df[i, 1], "_", comparison_df[i, 2], "-vs-", comparison_df[i, 3], "_pca_plot.png")
     ),
     pca_plot,
     ))
   suppressMessages(ggsave(
     file.path(
       snakemake@params[["output_dir"]],
-      paste0(comparison_df[i, 1], "_pca_plot.svg")
+      paste0(comparison_df[i, 1], "_", comparison_df[i, 2], "-vs-", comparison_df[i, 3], "_pca_plot.svg")
     ),
     pca_plot
   ))
