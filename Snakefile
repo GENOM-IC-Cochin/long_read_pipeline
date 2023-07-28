@@ -79,7 +79,7 @@ rule minimap_align:
     threads:
         10
     params:
-        thread_index=9
+        thread_index= lambda w, threads : threads - 1
     shell:
         "minimap2 -ax splice -t {threads} {input.fa} {input.fq} | "
         "samtools sort -@ {threads} -o {output.bam} && "
