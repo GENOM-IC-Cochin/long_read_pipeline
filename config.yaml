@@ -7,11 +7,11 @@
 # ------------------------------------------------------------------------------
 # References
 # Either a gtf for both pathogen and host, or the gtf for the organism filtered in
-gtf: "/home/etheimer/ref_proj_paul/gencode/gencode.v43.primary_assembly.annotation.gtf"
+gtf: "/path/to/gtf"
 # Is created by a rule : just give it a path and a name - the gtf is modified for the alignment qc metrics
-collaps_gtf: "/home/etheimer/ref_proj_paul/gencode/gencode.v43.primary_assembly.annotation_collapsed.gtf"
+collaps_gtf: "/path/to/collaps_gtf"
 # The reference for both host and pathogen concatenated
-ref_fa: "/home/etheimer/ref_proj_paul/custom_ref/GRCh38.primary_assembly_pNLGV.fa.gz"
+ref_fa: "/path/to/ref_fa"
 
 # ------------------------------------------------------------------------------
 # Samplesheet
@@ -39,12 +39,12 @@ batch: ""
 # Comparison order
 # A file indicating comparisons (and variable) to use
 # format : variable,level_1,level_2
-comparison: "/home/etheimer/ONT_Gallois/tat_pas_tat_v2/contrasts.csv"
+comparison: "/path/to/comparison.csv"
 
 # ------------------------------------------------------------------------------
 # fastq directory
 # The directory containing all and only the fastqs. Without . in their names
-fastq_dir: "/datas/PROJETS/2023/Nanopore_Paul/tat_pas_tat/"
+fastq_dir: "/path/to/fastq_dir"
 
 # ------------------------------------------------------------------------------
 # Output directories
