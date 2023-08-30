@@ -4,14 +4,16 @@
 # Optionaly, this pipeline can align on a pathogen/host reference and filter out the pathogen-aligning reads.
 
 
+# ------------------------------------------------------------------------------
 # References
 # Either a gtf for both pathogen and host, or the gtf for the organism filtered in
-gtf: "/home/etheimer/storage/Nanopore_data/tat_pas_tat_v2/gencode.v43.primary_assembly.annotation.gtf"
+gtf: "/home/etheimer/ref_proj_paul/gencode/gencode.v43.primary_assembly.annotation.gtf"
 # Is created by a rule : just give it a path and a name - the gtf is modified for the alignment qc metrics
-collaps_gtf: "/home/etheimer/storage/Nanopore_data/tat_pas_tat_v2/gencode.v43.primary_assembly.annotation_collapsed.gtf"
+collaps_gtf: "/home/etheimer/ref_proj_paul/gencode/gencode.v43.primary_assembly.annotation_collapsed.gtf"
 # The reference for both host and pathogen concatenated
-ref_fa: "/home/etheimer/storage/Nanopore_data/tat_pas_tat_v2/GRCh38.primary_assembly_pNLGV.fa.gz"
+ref_fa: "/home/etheimer/ref_proj_paul/custom_ref/GRCh38.primary_assembly_pNLGV.fa.gz"
 
+# ------------------------------------------------------------------------------
 # Samplesheet
 # The samplesheet needs to contain :
 # - a column named condition for the principal effect to be studied
@@ -33,27 +35,32 @@ samplesheet: "design_matrix.tsv"
 ## 6        2         C
 batch: ""
 
+# ------------------------------------------------------------------------------
 # Comparison order
 # A file indicating comparisons (and variable) to use
 # format : variable,level_1,level_2
-comparison: "/home/etheimer/Documents/Nanopore_Minion/tat_pas_tat/long_read_pipeline/contrasts.csv"
+comparison: "/home/etheimer/ONT_Gallois/tat_pas_tat_v2/contrasts.csv"
 
+# ------------------------------------------------------------------------------
 # fastq directory
 # The directory containing all and only the fastqs. Without . in their names
-fastq_dir: "/home/etheimer/storage/Nanopore_data/tat_pas_tat_v2/fastqs/"
+fastq_dir: "/datas/PROJETS/2023/Nanopore_Paul/tat_pas_tat/"
 
+# ------------------------------------------------------------------------------
 # Output directories
 # the output directory for the quantification files
 quant_dir: "quants_human/"
 # the output directory for the - final - bam files
-bam_dir: "/home/etheimer/storage/Nanopore_data/tat_pas_tat_v2/bams/"
+bam_dir: "bams/"
 
+# ------------------------------------------------------------------------------
 # Organism
 # If used in a host/pathogen context, provide names for your organisms.
 # The second name is the one filtered out
 # (but this parameter only gives names, it is the bed file that defines what is filtered)
 organisms: "human,pNLGV"
 
+# ------------------------------------------------------------------------------
 # Filter bam
 # whether to filter out parts of the reference genome (such as the pathogen genome)
 filter: "yes"
@@ -62,6 +69,15 @@ filter: "yes"
 # pNLGV_4GS_Tm	0	15489
 bed_file: "viral_chr.bed"
 
+# ------------------------------------------------------------------------------
+# Alignment with prioritization on annotated splice junctions. (--junc_bed option of minimap2)
+junc: "no"
+
+# ------------------------------------------------------------------------------
+# Use Isoquant's discovered transcripts
+tr_discovery: "no"
+
+# ------------------------------------------------------------------------------
 # Filter low expression transcript
 # Using the DRIMseq filters
 # Benchmark default, adapted to short read :

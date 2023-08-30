@@ -47,6 +47,11 @@ else:
     rule_all_input_list.extend(nofilter_files)
     include: "no_filter_rules.smk"
 
+if config["junc"] == "yes":
+    include: "junc_align.smk"
+else:
+    include: "no_junc_align.smk"
+
 
 
 # RULES ---------------------------------------
@@ -54,36 +59,6 @@ else:
 rule all:
     input:
         rule_all_input_list
-
-
-# does not work : Indexing parameters (-k, -w or -H) overridden by parameters used in the prebuilt index.
-# I dont know what those parameters are for -x splice
-# rule minimap_index:
-#     input:
-#         config["ref_fa"]
-#     output:
-#         config["ref_mmi"]
-#     shell:
-#         "minimap2 -d -x splice {output} {input}"
-
-# Maybe add annotated junctions in bed format, to prioritize annotated splice junction.
-# paftools.js gff2bed anno.gff > anno.bed # to create the bed file.
-
-rule minimap_align:
-    input:
-        fa=config["ref_fa"],
-        fq=config["fastq_dir"] + "{sample}.fastq.gz"
-    output:
-        bam="aligned_tosep/{sample}.bam",
-        bai="aligned_tosep/{sample}.bam.bai"
-    threads:
-        10
-    params:
-        thread_index= lambda w, threads : threads - 1
-    shell:
-        "minimap2 -ax splice -t {threads} {input.fa} {input.fq} | "
-        "samtools sort -@ {threads} -o {output.bam} && "
-        "samtools index -@ {params.thread_index} {output.bam}"
 
 
 rule rnaseqc:
@@ -143,8 +118,8 @@ rule isoquant:
 
 rule analysis_script:
     input:
-        gtf=config["quant_dir"] + "ALL_SAMPLES/ALL_SAMPLES.transcript_models.gtf",
-        quants=config["quant_dir"] + "ALL_SAMPLES/ALL_SAMPLES.transcript_model_grouped_counts.tsv"
+        gtf=f"{config['quant_dir']}ALL_SAMPLES/ALL_SAMPLES.transcript_models.gtf" if config["tr_discovery"] == "yes" else config["gtf"],
+        quants=f"{config['quant_dir']}ALL_SAMPLES/ALL_SAMPLES.transcript_model_grouped_counts.tsv" if config["tr_discovery"] == "yes" else f"{config['quant_dir']}ALL_SAMPLES/ALL_SAMPLES.transcript_grouped_counts.tsv"
     output:
         expand("analysis/{comp}_adjusted_gene_transcript_pval_005.csv", comp=list_comparisons),
         expand("analysis/{comp}_signif_genes_and_isoforms.png", comp=list_comparisons),
